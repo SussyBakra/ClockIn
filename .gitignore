@@ -42,3 +42,8 @@ yarn-error.*
 
 # editor config
 .cursor/
+
+# build credentials
+credentials.json
+*.jks
+run-build.js

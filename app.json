@@ -26,6 +26,12 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "0ef8eb36-a1be-411e-922e-ee176af904b2"
+      }
+    },
+    "owner": "sussy6akra"
   }
 }
