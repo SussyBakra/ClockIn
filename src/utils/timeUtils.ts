@@ -41,6 +41,35 @@ export function formatDurationHMS(ms: number): string {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
+export function formatDurationMS(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+}
+
+export function formatCountdown(remainingMs: number): string {
+  const clamped = Math.max(0, remainingMs);
+  const totalSeconds = Math.floor(clamped / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+export function calculateSignOutTime(
+  clockInTimeISO: string,
+  totalAbsentMs: number,
+  dailyQuotaHours: number = 5
+): string {
+  const clockIn = new Date(clockInTimeISO).getTime();
+  const signOut = new Date(clockIn + dailyQuotaHours * 3600000 + totalAbsentMs);
+  let hours = signOut.getHours();
+  const minutes = String(signOut.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12 || 12;
+  return `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+}
+
 export function formatTimeOfDay(isoString: string): string {
   const d = new Date(isoString);
   let hours = d.getHours();

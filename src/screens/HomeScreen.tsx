@@ -4,81 +4,152 @@ import {
   Text,
   Pressable,
   ScrollView,
+  AppState as RNAppState,
   StyleSheet,
-  FlatList,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import FixedHeader from '../components/FixedHeader';
+import SidePanel from '../components/SidePanel';
 import { useApp } from '../context/AppContext';
 import {
   formatDate,
-  getTodayEntries,
-  getDurationMs,
-  formatDurationHM,
-  formatDurationHMS,
   formatTimeOfDay,
+  formatDurationMS,
+  formatCountdown,
+  calculateSignOutTime,
   getWeeklyTotalMs,
 } from '../utils/timeUtils';
 
+const BREAK_LIMIT_MS = 600000;
+
 export default function HomeScreen() {
-  const { state, clockIn, clockOut, getActiveEntry } = useApp();
+  const { state, startBreak, endBreak, clockOutSession } = useApp();
   const insets = useSafeAreaInsets();
   const [now, setNow] = useState(Date.now());
+  const [cardCenterY, setCardCenterY] = useState(250);
 
-  const activeEntry = getActiveEntry();
-  const isClockedIn = !!activeEntry;
+  const { dayLog, isClockedIn, isOnBreak, breakStartTimestamp } = state;
 
   useEffect(() => {
-    if (!isClockedIn) return;
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [isClockedIn]);
+  }, []);
 
-  const todayEntries = getTodayEntries(state.entries);
-  const todayTotalMs = todayEntries.reduce((s, e) => s + getDurationMs(e), 0);
+  useEffect(() => {
+    const sub = RNAppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') setNow(Date.now());
+    });
+    return () => sub.remove();
+  }, []);
+
+  const elapsedBreakMs = isOnBreak && breakStartTimestamp ? now - breakStartTimestamp : 0;
+  const breakExceeded = elapsedBreakMs >= BREAK_LIMIT_MS;
+  const timerDisplay = !isOnBreak
+    ? '10:00'
+    : breakExceeded
+    ? formatCountdown(elapsedBreakMs)
+    : formatCountdown(BREAK_LIMIT_MS - elapsedBreakMs);
+
+  const badgeLabel = !isOnBreak ? 'Working' : breakExceeded ? 'Break Time Exceeded' : 'Break';
+  const badgeColor = !isOnBreak ? '#6B7B8D' : breakExceeded ? '#E74C3C' : '#2ECC71';
+  const badgeBg = !isOnBreak
+    ? 'rgba(107,123,141,0.12)'
+    : breakExceeded
+    ? 'rgba(231,76,60,0.12)'
+    : 'rgba(46,204,113,0.15)';
+
+  const totalAbsentMs = dayLog
+    ? dayLog.breaks
+        .filter((b) => b.exceeded && b.endTime)
+        .reduce((sum, b) => sum + (new Date(b.endTime!).getTime() - new Date(b.startTime).getTime()), 0)
+    : 0;
+
   const weeklyTotalMs = getWeeklyTotalMs(state.entries, new Date());
   const weeklyGoalMs = state.settings.weeklyGoalHours * 3600000;
   const weeklyHours = Math.floor(weeklyTotalMs / 3600000);
-  const estimatedEarned = ((weeklyTotalMs / 3600000) * state.settings.hourlyRate).toFixed(2);
 
-  const sortedToday = [...todayEntries].sort(
-    (a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
-  );
-
-  const handleToggle = useCallback(() => {
-    if (isClockedIn) {
-      clockOut();
-    } else {
-      clockIn();
-    }
-  }, [isClockedIn, clockIn, clockOut]);
+  const signOutTimeDisplay =
+    isClockedIn && dayLog?.clockInTime
+      ? calculateSignOutTime(dayLog.clockInTime, totalAbsentMs, 5)
+      : '--:-- --';
 
   const headerHeight = insets.top + 60;
 
-  const renderTimelineItem = ({ item, index }: { item: typeof sortedToday[0]; index: number }) => {
-    const dur = getDurationMs(item);
-    const isActive = item.isActive;
-    return (
-      <View style={styles.timelineItem}>
-        <View style={styles.timelineDotCol}>
-          <View style={[styles.timelineDot, isActive && styles.timelineDotActive]} />
-          {index < sortedToday.length - 1 && <View style={styles.timelineLine} />}
-        </View>
-        <View style={styles.timelineContent}>
-          <Text style={styles.timelineTitle}>
-            {isActive ? 'Current Session' : item.project || 'Session'}
-          </Text>
-          <Text style={styles.timelineTime}>
-            {formatTimeOfDay(item.startTime)} — {item.endTime ? formatTimeOfDay(item.endTime) : 'Present'}
-          </Text>
-        </View>
-        <View style={styles.durationBadge}>
-          <Text style={styles.durationBadgeText}>{formatDurationHM(dur)}</Text>
-        </View>
-      </View>
-    );
+  const handleBreakToggle = useCallback(() => {
+    if (isOnBreak) {
+      endBreak();
+    } else {
+      startBreak();
+    }
+  }, [isOnBreak, startBreak, endBreak]);
+
+  const handleCardLayout = (e: { nativeEvent: { layout: { y: number; height: number } } }) => {
+    const { y, height } = e.nativeEvent.layout;
+    setCardCenterY(headerHeight + y + height / 2);
   };
+
+  const buildActivityRows = () => {
+    if (!dayLog) return [];
+    const rows: {
+      key: string;
+      heading: string;
+      subtitle: string;
+      badge: string | null;
+      headingColor: string;
+      dotColor: string;
+    }[] = [];
+
+    if (dayLog.clockInTime) {
+      rows.push({
+        key: 'clockin',
+        heading: 'Clocked In',
+        subtitle: formatTimeOfDay(dayLog.clockInTime),
+        badge: null,
+        headingColor: '#1A1A2E',
+        dotColor: '#2ECC71',
+      });
+    }
+
+    dayLog.breaks.forEach((b, idx) => {
+      if (!b.endTime) return;
+      const dur = new Date(b.endTime).getTime() - new Date(b.startTime).getTime();
+      if (b.exceeded) {
+        rows.push({
+          key: `absent-${b.id}`,
+          heading: 'Absent',
+          subtitle: `${formatTimeOfDay(b.startTime)} — ${formatTimeOfDay(b.endTime)}`,
+          badge: formatDurationMS(dur),
+          headingColor: '#E74C3C',
+          dotColor: '#E74C3C',
+        });
+      } else {
+        rows.push({
+          key: `break-${b.id}`,
+          heading: `Break-${idx + 1}`,
+          subtitle: `${formatTimeOfDay(b.startTime)} — ${formatTimeOfDay(b.endTime)}`,
+          badge: formatDurationMS(dur),
+          headingColor: '#1A1A2E',
+          dotColor: '#6B7B8D',
+        });
+      }
+    });
+
+    if (dayLog.clockOutTime) {
+      rows.push({
+        key: 'clockout',
+        heading: 'Clock Out',
+        subtitle: formatTimeOfDay(dayLog.clockOutTime),
+        badge: null,
+        headingColor: '#1A1A2E',
+        dotColor: '#4A5568',
+      });
+    }
+
+    return rows;
+  };
+
+  const activityRows = buildActivityRows();
 
   return (
     <View style={styles.screen}>
@@ -100,34 +171,32 @@ export default function HomeScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Main Clock Card */}
-        <View style={styles.clockCard}>
-          <View style={[styles.statusPill, isClockedIn ? styles.statusPillActive : styles.statusPillInactive]}>
-            <View style={[styles.statusDot, isClockedIn ? styles.statusDotActive : styles.statusDotInactive]} />
-            <Text style={[styles.statusText, isClockedIn ? styles.statusTextActive : styles.statusTextInactive]}>
-              {isClockedIn ? 'CLOCKED IN' : 'CLOCKED OUT'}
-            </Text>
+        {/* Break Timer Card */}
+        <View style={styles.timerCard} onLayout={handleCardLayout}>
+          <View style={[styles.badge, { backgroundColor: badgeBg }]}>
+            <View style={[styles.badgeDot, { backgroundColor: badgeColor }]} />
+            <Text style={[styles.badgeText, { color: badgeColor }]}>{badgeLabel}</Text>
           </View>
 
-          <Text style={styles.clockLabel}>Total Hours Today</Text>
-          <Text style={styles.clockBig}>{formatDurationHM(todayTotalMs)}</Text>
-          <Text style={styles.clockSmall}>{formatDurationHMS(todayTotalMs)}</Text>
+          <Text style={styles.timerDisplay}>{timerDisplay}</Text>
 
           <Pressable
             style={({ pressed }) => [
-              styles.clockButton,
-              isClockedIn ? styles.clockButtonOut : styles.clockButtonIn,
-              pressed && styles.clockButtonPressed,
+              styles.breakButton,
+              isOnBreak ? styles.breakButtonEnd : styles.breakButtonStart,
+              (!isClockedIn) && styles.breakButtonDisabled,
+              pressed && isClockedIn && styles.buttonPressed,
             ]}
-            onPress={handleToggle}
+            onPress={handleBreakToggle}
+            disabled={!isClockedIn}
           >
             <Ionicons
-              name={isClockedIn ? 'stop-circle' : 'play-circle'}
+              name={isOnBreak ? 'stop-circle' : 'cafe'}
               size={20}
-              color={isClockedIn ? '#0D1B2A' : '#FFFFFF'}
+              color={isOnBreak ? '#0D1B2A' : '#FFFFFF'}
             />
-            <Text style={[styles.clockButtonText, isClockedIn ? styles.clockButtonTextOut : styles.clockButtonTextIn]}>
-              {isClockedIn ? 'Clock Out' : 'Clock In'}
+            <Text style={[styles.breakButtonText, isOnBreak ? styles.breakTextEnd : styles.breakTextStart]}>
+              {isOnBreak ? 'End Break' : 'Start Break'}
             </Text>
           </Pressable>
         </View>
@@ -135,24 +204,51 @@ export default function HomeScreen() {
         {/* Activity Section */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Today's Activity</Text>
-          <Pressable style={styles.editButton}>
-            <Text style={styles.editButtonText}>Edit</Text>
-          </Pressable>
         </View>
 
-        {sortedToday.length > 0 ? (
+        {activityRows.length > 0 ? (
           <View style={styles.activityCard}>
-            {sortedToday.map((item, index) => (
-              <View key={item.id}>
-                {renderTimelineItem({ item, index })}
+            {activityRows.map((row, index) => (
+              <View key={row.key} style={styles.timelineItem}>
+                <View style={styles.timelineDotCol}>
+                  <View style={[styles.timelineDot, { backgroundColor: row.dotColor }]} />
+                  {index < activityRows.length - 1 && <View style={styles.timelineLine} />}
+                </View>
+                <View style={styles.timelineContent}>
+                  <Text style={[styles.timelineTitle, { color: row.headingColor }]}>{row.heading}</Text>
+                  <Text style={styles.timelineTime}>{row.subtitle}</Text>
+                </View>
+                {row.badge ? (
+                  <View style={styles.durationBadge}>
+                    <Text style={styles.durationBadgeText}>{row.badge}</Text>
+                  </View>
+                ) : null}
               </View>
             ))}
           </View>
         ) : (
           <View style={styles.activityCard}>
-            <Text style={styles.emptyText}>No activity logged today. Clock in to start tracking!</Text>
+            <Text style={styles.emptyText}>
+              {isClockedIn ? 'No breaks taken yet.' : 'Clock in to start tracking.'}
+            </Text>
           </View>
         )}
+
+        {/* Clock Out Button */}
+        <Pressable
+          style={({ pressed }) => [
+            styles.clockOutButton,
+            !isClockedIn && styles.clockOutDisabled,
+            pressed && isClockedIn && styles.buttonPressed,
+          ]}
+          onPress={clockOutSession}
+          disabled={!isClockedIn}
+        >
+          <Ionicons name="log-out-outline" size={20} color={isClockedIn ? '#FFFFFF' : '#6B7B8D'} />
+          <Text style={[styles.clockOutText, !isClockedIn && styles.clockOutTextDisabled]}>
+            Clock Out
+          </Text>
+        </Pressable>
 
         {/* Bottom Stats */}
         <View style={styles.statsRow}>
@@ -168,7 +264,7 @@ export default function HomeScreen() {
               <View
                 style={[
                   styles.miniProgressFill,
-                  { width: `${Math.min(100, (weeklyTotalMs / weeklyGoalMs) * 100)}%` },
+                  { width: `${Math.min(100, weeklyGoalMs > 0 ? (weeklyTotalMs / weeklyGoalMs) * 100 : 0)}%` },
                 ]}
               />
             </View>
@@ -176,13 +272,15 @@ export default function HomeScreen() {
 
           <View style={styles.statCard}>
             <View style={styles.statIconRow}>
-              <Ionicons name="cash" size={18} color="#2ECC71" />
-              <Text style={styles.statLabel}>Est. Earned</Text>
+              <Ionicons name="time-outline" size={18} color="#6C63FF" />
+              <Text style={styles.statLabel}>Sign Out Time</Text>
             </View>
-            <Text style={styles.statValue}>${estimatedEarned}</Text>
+            <Text style={styles.statValue}>{signOutTimeDisplay}</Text>
           </View>
         </View>
       </ScrollView>
+
+      <SidePanel cardCenterY={cardCenterY} onClockIn={() => {}} />
     </View>
   );
 }
@@ -206,69 +304,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  clockCard: {
+  timerCard: {
     backgroundColor: '#0D1B2A',
     borderRadius: 24,
     padding: 28,
     alignItems: 'center',
     marginBottom: 24,
   },
-  statusPill: {
+  badge: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 20,
-    marginBottom: 16,
+    marginBottom: 20,
   },
-  statusPillActive: {
-    backgroundColor: 'rgba(46, 204, 113, 0.15)',
-  },
-  statusPillInactive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  statusDot: {
+  badgeDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     marginRight: 8,
   },
-  statusDotActive: {
-    backgroundColor: '#2ECC71',
-  },
-  statusDotInactive: {
-    backgroundColor: '#6B7B8D',
-  },
-  statusText: {
+  badgeText: {
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 1,
+    textTransform: 'uppercase',
   },
-  statusTextActive: {
-    color: '#2ECC71',
-  },
-  statusTextInactive: {
-    color: '#6B7B8D',
-  },
-  clockLabel: {
-    fontSize: 14,
-    color: '#8899AA',
-    marginBottom: 8,
-  },
-  clockBig: {
-    fontSize: 48,
+  timerDisplay: {
+    fontSize: 56,
     fontWeight: '700',
     color: '#FFFFFF',
-    letterSpacing: 2,
-  },
-  clockSmall: {
-    fontSize: 16,
-    color: '#6B7B8D',
     fontVariant: ['tabular-nums'],
-    marginTop: 4,
+    letterSpacing: 3,
     marginBottom: 24,
   },
-  clockButton: {
+  breakButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -278,23 +349,27 @@ const styles = StyleSheet.create({
     gap: 8,
     minHeight: 54,
   },
-  clockButtonIn: {
+  breakButtonStart: {
     backgroundColor: '#6C63FF',
   },
-  clockButtonOut: {
+  breakButtonEnd: {
     backgroundColor: '#FFFFFF',
   },
-  clockButtonPressed: {
+  breakButtonDisabled: {
+    backgroundColor: '#3A4A5C',
+    opacity: 0.5,
+  },
+  buttonPressed: {
     opacity: 0.85,
   },
-  clockButtonText: {
+  breakButtonText: {
     fontSize: 16,
     fontWeight: '700',
   },
-  clockButtonTextIn: {
+  breakTextStart: {
     color: '#FFFFFF',
   },
-  clockButtonTextOut: {
+  breakTextEnd: {
     color: '#0D1B2A',
   },
   sectionHeader: {
@@ -307,17 +382,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#1A1A2E',
-  },
-  editButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    minHeight: 48,
-    justifyContent: 'center',
-  },
-  editButtonText: {
-    fontSize: 14,
-    color: '#6C63FF',
-    fontWeight: '600',
   },
   activityCard: {
     backgroundColor: '#FFFFFF',
@@ -344,11 +408,7 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#CED4DA',
     marginTop: 4,
-  },
-  timelineDotActive: {
-    backgroundColor: '#2ECC71',
   },
   timelineLine: {
     width: 2,
@@ -363,7 +423,6 @@ const styles = StyleSheet.create({
   timelineTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1A1A2E',
     marginBottom: 2,
   },
   timelineTime: {
@@ -387,6 +446,29 @@ const styles = StyleSheet.create({
     color: '#6B7B8D',
     textAlign: 'center',
     paddingVertical: 12,
+  },
+  clockOutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E74C3C',
+    borderRadius: 50,
+    paddingVertical: 16,
+    gap: 8,
+    marginBottom: 20,
+    minHeight: 54,
+  },
+  clockOutDisabled: {
+    backgroundColor: '#CED4DA',
+    opacity: 0.5,
+  },
+  clockOutText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  clockOutTextDisabled: {
+    color: '#6B7B8D',
   },
   statsRow: {
     flexDirection: 'row',
