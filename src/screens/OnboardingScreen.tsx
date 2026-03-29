@@ -79,12 +79,13 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 32,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     color: '#1A1A2E',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
+    fontFamily: 'Inter_400Regular',
     color: '#6B7B8D',
     marginBottom: 48,
   },
@@ -106,7 +107,7 @@ const styles = StyleSheet.create({
   },
   clockInText: {
     fontSize: 18,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     color: '#FFFFFF',
   },
   clockInTextDisabled: {
@@ -123,7 +124,7 @@ const styles = StyleSheet.create({
   },
   skipText: {
     fontSize: 15,
+    fontFamily: 'Inter_500Medium',
     color: '#6B7B8D',
-    fontWeight: '500',
   },
 });

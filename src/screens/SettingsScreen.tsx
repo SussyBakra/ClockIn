@@ -298,17 +298,18 @@ const styles = StyleSheet.create({
   },
   profileName: {
     fontSize: 18,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     color: '#1A1A2E',
   },
   profileEmail: {
     fontSize: 13,
+    fontFamily: 'Inter_400Regular',
     color: '#6B7B8D',
     marginTop: 2,
   },
   sectionLabel: {
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     color: '#6B7B8D',
     letterSpacing: 1,
     textTransform: 'uppercase',
@@ -346,13 +347,13 @@ const styles = StyleSheet.create({
   },
   prefLabel: {
     fontSize: 15,
-    fontWeight: '500',
+    fontFamily: 'Inter_500Medium',
     color: '#1A1A2E',
   },
   prefValue: {
     fontSize: 15,
+    fontFamily: 'Inter_500Medium',
     color: '#6B7B8D',
-    fontWeight: '500',
   },
   prefDivider: {
     height: StyleSheet.hairlineWidth,
@@ -361,6 +362,7 @@ const styles = StyleSheet.create({
   },
   versionText: {
     fontSize: 13,
+    fontFamily: 'Inter_400Regular',
     color: '#A0AEC0',
     textAlign: 'center',
     marginTop: 8,
@@ -381,13 +383,13 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     color: '#1A1A2E',
     marginBottom: 20,
   },
   modalFieldLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
     color: '#6B7B8D',
     marginBottom: 6,
     marginTop: 8,
@@ -398,6 +400,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
+    fontFamily: 'Inter_400Regular',
     color: '#1A1A2E',
     marginBottom: 12,
     minHeight: 48,
@@ -420,7 +423,7 @@ const styles = StyleSheet.create({
   },
   modalCancelText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
     color: '#4A5568',
   },
   modalSave: {
@@ -428,7 +431,7 @@ const styles = StyleSheet.create({
   },
   modalSaveText: {
     fontSize: 15,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     color: '#FFFFFF',
   },
 });

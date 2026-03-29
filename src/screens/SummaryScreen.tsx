@@ -113,18 +113,19 @@ const styles = StyleSheet.create({
   },
   progressLabel: {
     fontSize: 14,
+    fontFamily: 'Inter_500Medium',
     color: '#8899AA',
     marginBottom: 8,
-    fontWeight: '500',
   },
   progressValue: {
     fontSize: 42,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     color: '#FFFFFF',
     letterSpacing: 1,
   },
   progressSub: {
     fontSize: 14,
+    fontFamily: 'Inter_400Regular',
     color: '#6B7B8D',
     marginBottom: 20,
   },
@@ -143,12 +144,12 @@ const styles = StyleSheet.create({
   },
   progressPercent: {
     fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
     color: '#6B7B8D',
-    fontWeight: '600',
   },
   breakdownTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     color: '#1A1A2E',
     marginBottom: 12,
   },
@@ -177,7 +178,7 @@ const styles = StyleSheet.create({
   },
   dayInitial: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     color: '#FFFFFF',
   },
   dayInfo: {
@@ -185,17 +186,18 @@ const styles = StyleSheet.create({
   },
   dayLabel: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
     color: '#1A1A2E',
   },
   dayDate: {
     fontSize: 12,
+    fontFamily: 'Inter_400Regular',
     color: '#6B7B8D',
     marginTop: 2,
   },
   dayHours: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     color: '#1A1A2E',
   },
   separator: {

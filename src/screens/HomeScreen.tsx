@@ -327,15 +327,14 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
   timerDisplay: {
     fontSize: 56,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     color: '#FFFFFF',
-    fontVariant: ['tabular-nums'],
     letterSpacing: 3,
     marginBottom: 24,
   },
@@ -364,7 +363,7 @@ const styles = StyleSheet.create({
   },
   breakButtonText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
   },
   breakTextStart: {
     color: '#FFFFFF',
@@ -380,7 +379,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     color: '#1A1A2E',
   },
   activityCard: {
@@ -422,11 +421,12 @@ const styles = StyleSheet.create({
   },
   timelineTitle: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
     marginBottom: 2,
   },
   timelineTime: {
     fontSize: 13,
+    fontFamily: 'Inter_400Regular',
     color: '#6B7B8D',
   },
   durationBadge: {
@@ -438,11 +438,12 @@ const styles = StyleSheet.create({
   },
   durationBadgeText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
     color: '#4A5568',
   },
   emptyText: {
     fontSize: 14,
+    fontFamily: 'Inter_400Regular',
     color: '#6B7B8D',
     textAlign: 'center',
     paddingVertical: 12,
@@ -464,7 +465,7 @@ const styles = StyleSheet.create({
   },
   clockOutText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     color: '#FFFFFF',
   },
   clockOutTextDisabled: {
@@ -494,12 +495,12 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 13,
+    fontFamily: 'Inter_500Medium',
     color: '#6B7B8D',
-    fontWeight: '500',
   },
   statValue: {
     fontSize: 20,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     color: '#1A1A2E',
   },
   miniProgressBg: {

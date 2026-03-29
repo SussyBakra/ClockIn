@@ -57,7 +57,7 @@ const styles = StyleSheet.create({
   },
   topLabel: {
     fontSize: 11,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     color: '#6B7B8D',
     letterSpacing: 1.5,
     textTransform: 'uppercase',
@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 22,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     color: '#1A1A2E',
   },
 });

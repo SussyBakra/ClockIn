@@ -26,7 +26,7 @@ interface SidePanelProps {
   onClockIn: () => void;
 }
 
-export default function SidePanel({ cardCenterY, onClockIn }: SidePanelProps) {
+export default function SidePanel({ onClockIn }: SidePanelProps) {
   const { state, clockInSession } = useApp();
   const translateX = useSharedValue(-PANEL_WIDTH);
   const isOpen = useSharedValue(false);
@@ -85,8 +85,6 @@ export default function SidePanel({ cardCenterY, onClockIn }: SidePanelProps) {
     onClockIn();
   };
 
-  const handleTopOffset = Math.max(0, cardCenterY - 30);
-
   return (
     <>
       <Animated.View style={[styles.overlay, animatedOverlay]} pointerEvents="box-none">
@@ -94,9 +92,9 @@ export default function SidePanel({ cardCenterY, onClockIn }: SidePanelProps) {
       </Animated.View>
 
       <GestureDetector gesture={panGesture}>
-        <Animated.View style={[styles.handleWrap, animatedHandle, { top: handleTopOffset }]}>
-          <Pressable onPress={openPanel} style={styles.handle}>
-            <Ionicons name="chevron-forward" size={16} color="#FFFFFF" />
+        <Animated.View style={[styles.handleWrap, animatedHandle]}>
+          <Pressable onPress={openPanel} style={styles.handleTouchable}>
+            <View style={styles.handleBar} />
           </Pressable>
         </Animated.View>
       </GestureDetector>
@@ -146,21 +144,22 @@ const styles = StyleSheet.create({
   handleWrap: {
     position: 'absolute',
     left: 0,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
     zIndex: 100,
   },
-  handle: {
-    width: 28,
-    height: 60,
-    backgroundColor: '#0D1B2A',
-    borderTopRightRadius: 14,
-    borderBottomRightRadius: 14,
+  handleTouchable: {
+    paddingHorizontal: 10,
+    paddingVertical: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 2, height: 0 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
+  },
+  handleBar: {
+    width: 4,
+    height: 40,
+    backgroundColor: 'rgba(180, 195, 210, 0.55)',
+    borderRadius: 2,
   },
   panel: {
     position: 'absolute',
@@ -200,12 +199,13 @@ const styles = StyleSheet.create({
   },
   panelTitle: {
     fontSize: 24,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     color: '#1A1A2E',
     marginBottom: 6,
   },
   panelSubtitle: {
     fontSize: 14,
+    fontFamily: 'Inter_400Regular',
     color: '#6B7B8D',
     marginBottom: 36,
   },
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
   },
   clockInText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     color: '#FFFFFF',
   },
   disabledText: {
@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
   },
   skipText: {
     fontSize: 14,
+    fontFamily: 'Inter_500Medium',
     color: '#6B7B8D',
-    fontWeight: '500',
   },
 });

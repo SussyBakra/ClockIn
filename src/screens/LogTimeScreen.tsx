@@ -233,13 +233,13 @@ const styles = StyleSheet.create({
   },
   formTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     color: '#1A1A2E',
     marginBottom: 20,
   },
   fieldLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
     color: '#6B7B8D',
     marginBottom: 8,
     marginTop: 4,
@@ -257,8 +257,8 @@ const styles = StyleSheet.create({
   },
   fieldButtonText: {
     fontSize: 15,
+    fontFamily: 'Inter_500Medium',
     color: '#1A1A2E',
-    fontWeight: '500',
   },
   timeRow: {
     flexDirection: 'row',
@@ -273,6 +273,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 15,
+    fontFamily: 'Inter_400Regular',
     color: '#1A1A2E',
     minHeight: 48,
   },
@@ -287,7 +288,7 @@ const styles = StyleSheet.create({
   },
   savedText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
     color: '#2ECC71',
   },
   primaryButton: {
@@ -301,7 +302,7 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     color: '#FFFFFF',
   },
   secondaryButton: {
@@ -316,7 +317,7 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     color: '#4A5568',
   },
   buttonPressed: {

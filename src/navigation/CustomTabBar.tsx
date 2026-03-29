@@ -93,9 +93,9 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 10,
+    fontFamily: 'Inter_500Medium',
     color: '#6B7B8D',
     marginTop: 3,
-    fontWeight: '500',
   },
   labelActive: {
     color: '#FFFFFF',
