@@ -1,48 +1,79 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { CommonActions, useNavigation } from '@react-navigation/native';
-import OnboardingScreen from '../screens/OnboardingScreen';
+import { Ionicons } from '@expo/vector-icons';
+import { Colors } from '../constants/colors';
+import type { RootStackParamList, TabParamList } from '../types/navigation';
+import LaunchScreen from '../screens/LaunchScreen';
 import HomeScreen from '../screens/HomeScreen';
-import LogTimeScreen from '../screens/LogTimeScreen';
-import SummaryScreen from '../screens/SummaryScreen';
-import SettingsScreen from '../screens/SettingsScreen';
-import CustomTabBar from './CustomTabBar';
+import PlaceholderScreen from '../screens/PlaceholderScreen';
 
-const Stack = createNativeStackNavigator();
-const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator<RootStackParamList>();
+const Tab = createBottomTabNavigator<TabParamList>();
 
-function MainTabs() {
+function TabNavigator() {
   return (
     <Tab.Navigator
-      tabBar={(props) => <CustomTabBar {...props} />}
-      screenOptions={{ headerShown: false }}
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle: {
+          height: 53,
+          borderTopWidth: 1,
+          borderTopColor: Colors.divider,
+          backgroundColor: Colors.white,
+          elevation: 0,
+          shadowOpacity: 0,
+        },
+        tabBarActiveTintColor: Colors.tabActive,
+        tabBarInactiveTintColor: Colors.tabInactive,
+        tabBarShowLabel: false,
+      }}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="LogTime" component={LogTimeScreen} options={{ tabBarLabel: 'Log Time' }} />
-      <Tab.Screen name="Summary" component={SummaryScreen} />
-      <Tab.Screen name="Settings" component={SettingsScreen} />
+      <Tab.Screen
+        name="Home"
+        component={HomeScreen}
+        options={{
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="home-outline" size={20} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Clock"
+        component={PlaceholderScreen}
+        options={{
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="time-outline" size={20} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Calendar"
+        component={PlaceholderScreen}
+        options={{
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="calendar-outline" size={20} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Settings"
+        component={PlaceholderScreen}
+        options={{
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="settings-outline" size={20} color={color} />
+          ),
+        }}
+      />
     </Tab.Navigator>
   );
 }
 
-function OnboardingWrapper() {
-  const navigation = useNavigation();
-
-  const goToMain = () => {
-    navigation.dispatch(
-      CommonActions.reset({ index: 0, routes: [{ name: 'Main' }] })
-    );
-  };
-
-  return <OnboardingScreen onClockIn={goToMain} onSkip={goToMain} />;
-}
-
 export default function RootNavigator() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
-      <Stack.Screen name="Onboarding" component={OnboardingWrapper} />
-      <Stack.Screen name="Main" component={MainTabs} />
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Launch" component={LaunchScreen} />
+      <Stack.Screen name="Main" component={TabNavigator} />
     </Stack.Navigator>
   );
 }

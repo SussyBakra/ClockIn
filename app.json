@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -15,23 +16,18 @@
       "supportsTablet": true
     },
     "android": {
-      "package": "com.clockin.app",
       "adaptiveIcon": {
-        "backgroundColor": "#0D1B2A",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
       },
+      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "extra": {
-      "eas": {
-        "projectId": "0ef8eb36-a1be-411e-922e-ee176af904b2"
-      }
-    },
-    "owner": "sussy6akra"
+    "plugins": [
+      "expo-font"
+    ]
   }
 }

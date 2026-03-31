@@ -1,10 +1,8 @@
-import 'react-native-gesture-handler';
-import React, { useEffect } from 'react';
-import { StatusBar } from 'expo-status-bar';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import React from 'react';
+import { ActivityIndicator, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import * as SplashScreen from 'expo-splash-screen';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import {
   useFonts,
   Inter_400Regular,
@@ -12,10 +10,9 @@ import {
   Inter_600SemiBold,
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
-import { AppProvider } from './src/context/AppContext';
+import { StatusBar } from 'expo-status-bar';
+import { ShiftProvider } from './src/hooks/useShiftStore';
 import RootNavigator from './src/navigation/RootNavigator';
-
-SplashScreen.preventAutoHideAsync();
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -25,23 +22,23 @@ export default function App() {
     Inter_700Bold,
   });
 
-  useEffect(() => {
-    if (fontsLoaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded]);
-
-  if (!fontsLoaded) return null;
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <AppProvider>
+        <ShiftProvider>
           <NavigationContainer>
-            <StatusBar style="dark" />
             <RootNavigator />
+            <StatusBar style="dark" />
           </NavigationContainer>
-        </AppProvider>
+        </ShiftProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
