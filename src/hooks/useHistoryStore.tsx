@@ -44,6 +44,7 @@ interface HistoryStore {
   history: HistoryMap;
   archiveShift: (clockInTime: number, clockOutTime: number, breaks: BreakRecord[]) => Promise<void>;
   addManualLog: (log: ManualLog) => Promise<void>;
+  deleteManualLog: (dateKey: string, logId: string) => Promise<void>;
   getDayRecord: (dateKey: string) => DayRecord;
   getWeekRecords: () => DayRecord[];
   getWeeklyTotalMs: () => number;
@@ -115,6 +116,20 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     await persist(updated);
   }, [persist]);
 
+  const deleteManualLog = useCallback(async (dateKey: string, logId: string) => {
+    const current = histRef.current;
+    const existing = current[dateKey];
+    if (!existing) return;
+    const updated: HistoryMap = {
+      ...current,
+      [dateKey]: {
+        ...existing,
+        manualLogs: existing.manualLogs.filter((l) => l.id !== logId),
+      },
+    };
+    await persist(updated);
+  }, [persist]);
+
   const getDayRecord = useCallback((dateKey: string): DayRecord => {
     return histRef.current[dateKey] || EMPTY_DAY(dateKey);
   }, []);
@@ -158,6 +173,7 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
         history,
         archiveShift,
         addManualLog,
+        deleteManualLog,
         getDayRecord,
         getWeekRecords,
         getWeeklyTotalMs,

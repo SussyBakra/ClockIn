@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
 import { Fonts, FontSizes } from '../constants/typography';
@@ -11,14 +12,12 @@ import { formatTimeOfDay } from '../utils/timeUtils';
 import DatePicker from '../components/DatePicker';
 import TimePicker from '../components/TimePicker';
 
-const TASKS = ['Development', 'Design', 'Meeting', 'Review', 'Other'];
-
 export default function LogTimeScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const historyStore = useHistoryStore();
   const shiftStore = useShiftStore();
 
-  const now = Date.now();
   const todayStart = new Date();
   todayStart.setHours(9, 0, 0, 0);
   const todayEnd = new Date();
@@ -27,8 +26,7 @@ export default function LogTimeScreen() {
   const [date, setDate] = useState(getTodayKey());
   const [startTime, setStartTime] = useState(todayStart.getTime());
   const [endTime, setEndTime] = useState(todayEnd.getTime());
-  const [task, setTask] = useState('Development');
-  const [showTaskPicker, setShowTaskPicker] = useState(false);
+  const [task, setTask] = useState('');
 
   const [targetHours, setTargetHours] = useState('8');
   const [workedOverride, setWorkedOverride] = useState('');
@@ -61,7 +59,7 @@ export default function LogTimeScreen() {
     setDate(getTodayKey());
     setStartTime(s.getTime());
     setEndTime(e.getTime());
-    setTask('Development');
+    setTask('');
   };
 
   const handleSave = async () => {
@@ -76,17 +74,22 @@ export default function LogTimeScreen() {
       startTime,
       endTime,
       duration,
-      task,
+      task: task.trim() || 'General',
     };
     await historyStore.addManualLog(log);
-    Alert.alert('Saved', `Logged ${formatHoursMinutes(duration)} for ${task}.`);
+    Alert.alert('Saved', `Logged ${formatHoursMinutes(duration)} for ${log.task}.`);
     clearForm();
   };
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Log Time</Text>
+        <View style={styles.headerLeft}>
+          <Pressable style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={18} color={Colors.normalTitle} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Log Time</Text>
+        </View>
         <Ionicons name="time-outline" size={22} color={Colors.headerIcon} />
       </View>
 
@@ -96,40 +99,42 @@ export default function LogTimeScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.section}>
-          <DatePicker label="Date" value={date} onChange={setDate} />
+        <DatePicker label="Date" value={date} onChange={setDate} />
 
-          <View style={styles.timeRow}>
-            <View style={styles.timeCol}>
-              <TimePicker label="Start Time" value={startTime} onChange={setStartTime} />
-            </View>
-            <View style={styles.timeCol}>
-              <TimePicker label="End Time" value={endTime} onChange={setEndTime} />
-            </View>
+        <View style={styles.timeRow}>
+          <View style={styles.timeCol}>
+            <TimePicker label="Start Time" value={startTime} onChange={setStartTime} />
           </View>
-
-          <Text style={styles.fieldLabel}>Task</Text>
-          <Pressable style={styles.taskInput} onPress={() => setShowTaskPicker(!showTaskPicker)}>
-            <Text style={styles.taskText}>{task}</Text>
-            <Ionicons name="chevron-down" size={18} color={Colors.timeRange} />
-          </Pressable>
-          {showTaskPicker && (
-            <View style={styles.taskDropdown}>
-              {TASKS.map((t) => (
-                <Pressable
-                  key={t}
-                  style={[styles.taskOption, t === task && styles.taskOptionActive]}
-                  onPress={() => { setTask(t); setShowTaskPicker(false); }}
-                >
-                  <Text style={[styles.taskOptionText, t === task && styles.taskOptionTextActive]}>{t}</Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
+          <View style={styles.timeCol}>
+            <TimePicker label="End Time" value={endTime} onChange={setEndTime} />
+          </View>
         </View>
 
+        <View style={styles.taskSection}>
+          <Text style={styles.fieldLabel}>Task</Text>
+          <TextInput
+            style={styles.taskInput}
+            value={task}
+            onChangeText={setTask}
+            placeholder="What did you work on?"
+            placeholderTextColor={Colors.timeRange}
+          />
+        </View>
+
+        <Pressable style={styles.saveBtn} onPress={handleSave}>
+          <Text style={styles.saveBtnText}>Save Log</Text>
+        </Pressable>
+
+        <Pressable style={styles.cancelBtn} onPress={clearForm}>
+          <Text style={styles.cancelBtnText}>Cancel</Text>
+        </Pressable>
+
         <View style={styles.calcCard}>
-          <Text style={styles.calcTitle}>Shift Calculator</Text>
+          <View style={styles.calcTitleRow}>
+            <View style={styles.calcBadge}>
+              <Text style={styles.calcBadgeText}>Shift Calculator</Text>
+            </View>
+          </View>
 
           <Text style={styles.calcLabel}>Target Hours for Today</Text>
           <TextInput
@@ -137,6 +142,8 @@ export default function LogTimeScreen() {
             value={targetHours}
             onChangeText={setTargetHours}
             keyboardType="decimal-pad"
+            placeholder="hours : mins"
+            placeholderTextColor={Colors.timeRange}
             selectTextOnFocus
           />
 
@@ -146,7 +153,7 @@ export default function LogTimeScreen() {
             value={workedOverride !== '' ? workedOverride : workedHours.toFixed(2)}
             onChangeText={setWorkedOverride}
             keyboardType="decimal-pad"
-            placeholder={workedHours.toFixed(2)}
+            placeholder="hours : mins"
             placeholderTextColor={Colors.timeRange}
             selectTextOnFocus
           />
@@ -171,18 +178,10 @@ export default function LogTimeScreen() {
           </View>
 
           <View style={[styles.resultRow, { borderBottomWidth: 0 }]}>
-            <Text style={styles.resultLabel}>If you leave now, today's total:</Text>
+            <Text style={styles.resultLabel}>If you leave now, today&apos;s total:</Text>
             <Text style={styles.resultValue}>{formatHoursMinutes(leaveNowTotal)}</Text>
           </View>
         </View>
-
-        <Pressable style={styles.saveBtn} onPress={handleSave}>
-          <Text style={styles.saveBtnText}>Save Log</Text>
-        </Pressable>
-
-        <Pressable style={styles.cancelBtn} onPress={clearForm}>
-          <Text style={styles.cancelBtnText}>Cancel</Text>
-        </Pressable>
       </ScrollView>
     </View>
   );
@@ -202,6 +201,21 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.divider,
   },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   headerTitle: {
     fontFamily: Fonts.bold,
     fontSize: FontSizes['3xl'],
@@ -214,15 +228,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
   },
-  section: {
-    marginBottom: 24,
-  },
   timeRow: {
     flexDirection: 'row',
     gap: 12,
   },
   timeCol: {
     flex: 1,
+  },
+  taskSection: {
+    marginTop: 8,
+    marginBottom: 20,
   },
   fieldLabel: {
     fontFamily: Fonts.bold,
@@ -231,45 +246,43 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   taskInput: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: 8,
     height: 48,
     paddingHorizontal: 12,
-    backgroundColor: Colors.white,
-  },
-  taskText: {
     fontFamily: Fonts.bold,
     fontSize: 14,
     color: Colors.normalTitle,
+    backgroundColor: Colors.white,
   },
-  taskDropdown: {
-    marginTop: 4,
+  saveBtn: {
+    backgroundColor: Colors.primaryButton,
+    borderRadius: 8,
+    height: 51,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  saveBtnText: {
+    fontFamily: Fonts.bold,
+    fontSize: FontSizes.lg,
+    color: Colors.primaryButtonText,
+  },
+  cancelBtn: {
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: 8,
+    height: 51,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: Colors.white,
-    overflow: 'hidden',
+    marginBottom: 24,
   },
-  taskOption: {
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.divider,
-  },
-  taskOptionActive: {
-    backgroundColor: Colors.cardBgZinc,
-  },
-  taskOptionText: {
+  cancelBtnText: {
     fontFamily: Fonts.bold,
-    fontSize: 13,
+    fontSize: FontSizes.lg,
     color: Colors.normalTitle,
-  },
-  taskOptionTextActive: {
-    color: Colors.primaryButton,
   },
   calcCard: {
     backgroundColor: Colors.cardBgZinc,
@@ -279,11 +292,22 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 24,
   },
-  calcTitle: {
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.lg,
-    color: Colors.normalTitle,
+  calcTitleRow: {
     marginBottom: 16,
+  },
+  calcBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.workingBadgeBg,
+    borderWidth: 1,
+    borderColor: Colors.workingBadgeBorder,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  calcBadgeText: {
+    fontFamily: Fonts.bold,
+    fontSize: FontSizes.base,
+    color: Colors.workingBadgeText,
   },
   calcLabel: {
     fontFamily: Fonts.bold,
@@ -340,33 +364,6 @@ const styles = StyleSheet.create({
   resultValue: {
     fontFamily: Fonts.bold,
     fontSize: 13,
-    color: Colors.normalTitle,
-  },
-  saveBtn: {
-    backgroundColor: Colors.primaryButton,
-    borderRadius: 8,
-    height: 51,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  saveBtnText: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.lg,
-    color: Colors.primaryButtonText,
-  },
-  cancelBtn: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 8,
-    height: 51,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.white,
-  },
-  cancelBtnText: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.lg,
     color: Colors.normalTitle,
   },
 });

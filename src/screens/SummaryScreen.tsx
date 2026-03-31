@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, Pressable, ScrollView, Modal, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ScrollView, Modal, Alert, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
 import { Fonts, FontSizes } from '../constants/typography';
@@ -17,10 +17,12 @@ import {
   getTodayKey,
 } from '../utils/dateUtils';
 import { buildActivityRows } from '../utils/buildActivityRows';
+import { formatTimeOfDay } from '../utils/timeUtils';
 import ActivityRow from '../components/ActivityRow';
 
 export default function SummaryScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const historyStore = useHistoryStore();
   const shiftStore = useShiftStore();
   const [selectedDay, setSelectedDay] = useState<DayRecord | null>(null);
@@ -28,33 +30,33 @@ export default function SummaryScreen() {
   const [records, setRecords] = useState<DayRecord[]>([]);
   const [weeklyTotalMs, setWeeklyTotalMs] = useState(0);
 
-  useFocusEffect(
-    useCallback(() => {
-      const days = getWeekRange();
-      setWeekDays(days);
+  const refreshData = useCallback(() => {
+    const days = getWeekRange();
+    setWeekDays(days);
 
-      const recs = historyStore.getWeekRecords();
-      const todayKey = getTodayKey();
-      const todayIdx = days.indexOf(todayKey);
+    const recs = historyStore.getWeekRecords();
+    const todayKey = getTodayKey();
+    const todayIdx = days.indexOf(todayKey);
 
-      if (todayIdx >= 0 && shiftStore.clockInTime) {
-        const liveRecord = { ...recs[todayIdx] };
-        if (!liveRecord.clockInTime) {
-          liveRecord.clockInTime = shiftStore.clockInTime;
-        }
-        if (!liveRecord.clockOutTime && shiftStore.clockOutTime) {
-          liveRecord.clockOutTime = shiftStore.clockOutTime;
-        }
-        if (liveRecord.breaks.length === 0 && shiftStore.breaks.length > 0) {
-          liveRecord.breaks = shiftStore.breaks;
-        }
-        recs[todayIdx] = liveRecord;
+    if (todayIdx >= 0 && shiftStore.clockInTime) {
+      const liveRecord = { ...recs[todayIdx] };
+      if (!liveRecord.clockInTime) {
+        liveRecord.clockInTime = shiftStore.clockInTime;
       }
+      if (!liveRecord.clockOutTime && shiftStore.clockOutTime) {
+        liveRecord.clockOutTime = shiftStore.clockOutTime;
+      }
+      if (shiftStore.breaks.length > 0) {
+        liveRecord.breaks = [...shiftStore.breaks];
+      }
+      recs[todayIdx] = liveRecord;
+    }
 
-      setRecords(recs);
-      setWeeklyTotalMs(historyStore.getWeeklyTotalMs());
-    }, [historyStore, shiftStore])
-  );
+    setRecords(recs);
+    setWeeklyTotalMs(historyStore.getWeeklyTotalMs());
+  }, [historyStore, shiftStore]);
+
+  useFocusEffect(refreshData);
 
   const weeklyGoalMs = 40 * 3600000;
   const progress = Math.min(1, weeklyTotalMs / weeklyGoalMs);
@@ -78,14 +80,41 @@ export default function SummaryScreen() {
   const openDayDetail = (record: DayRecord) => {
     const todayKey = getTodayKey();
     if (record.date === todayKey && shiftStore.clockInTime) {
-      const merged = { ...record };
-      if (!merged.clockInTime) merged.clockInTime = shiftStore.clockInTime;
-      if (!merged.clockOutTime && shiftStore.clockOutTime) merged.clockOutTime = shiftStore.clockOutTime;
-      if (merged.breaks.length === 0) merged.breaks = shiftStore.breaks;
+      const merged: DayRecord = {
+        ...record,
+        clockInTime: record.clockInTime || shiftStore.clockInTime,
+        clockOutTime: record.clockOutTime || shiftStore.clockOutTime,
+        breaks: shiftStore.breaks.length > 0 ? [...shiftStore.breaks] : record.breaks,
+        manualLogs: [...record.manualLogs],
+      };
       setSelectedDay(merged);
     } else {
-      setSelectedDay(record);
+      setSelectedDay({ ...record, manualLogs: [...record.manualLogs] });
     }
+  };
+
+  const handleDeleteManualLog = (dateKey: string, logId: string) => {
+    Alert.alert(
+      'Delete Log',
+      'Are you sure you want to delete this log?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await historyStore.deleteManualLog(dateKey, logId);
+            refreshData();
+            const updated = historyStore.getDayRecord(dateKey);
+            if (updated.clockInTime || updated.manualLogs.length > 0) {
+              setSelectedDay({ ...updated });
+            } else {
+              setSelectedDay(null);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const selectedRows = selectedDay?.clockInTime
@@ -95,7 +124,12 @@ export default function SummaryScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Weekly Summary</Text>
+        <View style={styles.headerLeft}>
+          <Pressable style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={18} color={Colors.normalTitle} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Weekly Summary</Text>
+        </View>
         <Ionicons name="calendar-outline" size={22} color={Colors.headerIcon} />
       </View>
 
@@ -136,7 +170,7 @@ export default function SummaryScreen() {
                 </Text>
               </View>
               <View style={styles.dayInfo}>
-                <Text style={[styles.dayName, today && styles.dayNameToday]}>{getDayName(dk)}</Text>
+                <Text style={styles.dayName}>{getDayName(dk)}</Text>
                 <Text style={styles.dayDate}>{formatDateShort(dk)}</Text>
               </View>
               <Text style={[styles.dayHours, !hasData && styles.dayNoData]}>
@@ -150,12 +184,11 @@ export default function SummaryScreen() {
       <Modal
         visible={selectedDay != null}
         transparent
-        animationType="slide"
+        animationType="fade"
         onRequestClose={() => setSelectedDay(null)}
       >
         <Pressable style={styles.modalOverlay} onPress={() => setSelectedDay(null)}>
-          <Pressable style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]} onPress={() => {}}>
-            <View style={styles.modalHandle} />
+          <Pressable style={styles.modalCard} onPress={() => {}}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 {selectedDay ? `${getDayName(selectedDay.date)} - ${formatDateShort(selectedDay.date)}` : ''}
@@ -165,46 +198,64 @@ export default function SummaryScreen() {
               </Pressable>
             </View>
 
-            {selectedRows.length > 0 ? (
-              <View style={styles.modalCard}>
-                {selectedRows.map((row, idx) => (
-                  <ActivityRow
-                    key={`${row.type}-${row.startTime}`}
-                    type={row.type}
-                    label={row.label}
-                    startTime={row.startTime}
-                    endTime={row.endTime}
-                    duration={row.duration}
-                    isLast={idx === selectedRows.length - 1}
-                  />
-                ))}
-              </View>
-            ) : (
-              <View style={styles.modalEmpty}>
-                <Text style={styles.modalEmptyText}>No activity recorded for this day.</Text>
-              </View>
-            )}
-
-            {selectedDay && selectedDay.manualLogs.length > 0 && (
-              <View style={styles.manualSection}>
-                <Text style={styles.manualLabel}>Manual Logs</Text>
-                <View style={styles.modalCard}>
-                  {selectedDay.manualLogs.map((log, idx) => (
-                    <View
-                      key={log.id}
-                      style={[styles.manualRow, idx < selectedDay.manualLogs.length - 1 && styles.manualDivider]}
-                    >
-                      <View style={styles.manualInfo}>
-                        <Text style={styles.manualTask}>{log.task}</Text>
-                        <Text style={styles.manualTime}>
-                          {formatHoursMinutes(log.duration)}
-                        </Text>
-                      </View>
-                    </View>
+            <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+              {selectedRows.length > 0 ? (
+                <View style={styles.activityCard}>
+                  {selectedRows.map((row, idx) => (
+                    <ActivityRow
+                      key={`${row.type}-${row.startTime}`}
+                      type={row.type}
+                      label={row.label}
+                      startTime={row.startTime}
+                      endTime={row.endTime}
+                      duration={row.duration}
+                      isLast={idx === selectedRows.length - 1 && (!selectedDay || selectedDay.manualLogs.length === 0)}
+                    />
                   ))}
                 </View>
-              </View>
-            )}
+              ) : (
+                <View style={styles.modalEmpty}>
+                  <Text style={styles.modalEmptyText}>No shift recorded for this day.</Text>
+                </View>
+              )}
+
+              {selectedDay && selectedDay.manualLogs.length > 0 && (
+                <View style={styles.manualSection}>
+                  <Text style={styles.manualLabel}>Manual Logs</Text>
+                  <View style={styles.activityCard}>
+                    {selectedDay.manualLogs.map((log, idx) => (
+                      <View
+                        key={log.id}
+                        style={[styles.manualRow, idx < selectedDay.manualLogs.length - 1 && styles.manualDivider]}
+                      >
+                        <View style={styles.manualInfo}>
+                          <View style={styles.manualLeft}>
+                            <Text style={styles.manualTask}>{log.task}</Text>
+                            <Text style={styles.manualTimeRange}>
+                              {formatTimeOfDay(log.startTime)} - {formatTimeOfDay(log.endTime)}
+                            </Text>
+                          </View>
+                          <View style={styles.manualRight}>
+                            <View style={styles.durationBadge}>
+                              <Text style={styles.durationBadgeText}>
+                                {formatHoursMinutes(log.duration)}
+                              </Text>
+                            </View>
+                            <Pressable
+                              style={styles.trashBtn}
+                              onPress={() => handleDeleteManualLog(selectedDay.date, log.id)}
+                              hitSlop={8}
+                            >
+                              <Ionicons name="trash-outline" size={16} color={Colors.exceededBadgeText} />
+                            </Pressable>
+                          </View>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+            </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>
@@ -225,6 +276,21 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: Colors.divider,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerTitle: {
     fontFamily: Fonts.bold,
@@ -303,8 +369,8 @@ const styles = StyleSheet.create({
   dayAvatar: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.white,
+    borderRadius: 8,
+    backgroundColor: Colors.cardBgZinc,
     borderWidth: 1,
     borderColor: Colors.border,
     justifyContent: 'center',
@@ -332,9 +398,6 @@ const styles = StyleSheet.create({
     color: Colors.normalTitle,
     marginBottom: 2,
   },
-  dayNameToday: {
-    fontFamily: Fonts.bold,
-  },
   dayDate: {
     fontFamily: Fonts.bold,
     fontSize: FontSizes.xs,
@@ -352,23 +415,18 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  modalSheet: {
+  modalCard: {
     backgroundColor: Colors.white,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 20,
+    width: '90%',
+    maxWidth: 360,
     maxHeight: '80%',
-  },
-  modalHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.border,
-    alignSelf: 'center',
-    marginBottom: 12,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -380,8 +438,13 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: FontSizes['2xl'],
     color: Colors.normalTitle,
+    flex: 1,
+    marginRight: 8,
   },
-  modalCard: {
+  modalScroll: {
+    flexGrow: 0,
+  },
+  activityCard: {
     backgroundColor: Colors.white,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -419,14 +482,40 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  manualLeft: {
+    flex: 1,
+    marginRight: 8,
+  },
   manualTask: {
     fontFamily: Fonts.bold,
     fontSize: FontSizes.md,
     color: Colors.normalTitle,
+    marginBottom: 4,
   },
-  manualTime: {
+  manualTimeRange: {
+    fontFamily: Fonts.bold,
+    fontSize: FontSizes.xs,
+    color: Colors.timeRange,
+  },
+  manualRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  durationBadge: {
+    backgroundColor: Colors.durationBadgeBg,
+    borderWidth: 1,
+    borderColor: Colors.durationBadgeBorder,
+    borderRadius: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  durationBadgeText: {
     fontFamily: Fonts.bold,
     fontSize: FontSizes.xs,
     color: Colors.durationBadgeText,
+  },
+  trashBtn: {
+    padding: 4,
   },
 });

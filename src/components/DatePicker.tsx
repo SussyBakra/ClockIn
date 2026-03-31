@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, Modal, StyleSheet, ScrollView } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
 import { Fonts } from '../constants/typography';
-import { formatDateLong, getDateKey } from '../utils/dateUtils';
+import { formatDateLong } from '../utils/dateUtils';
 
 interface Props {
   value: string;
@@ -46,7 +47,7 @@ export default function DatePicker({ value, onChange, label }: Props) {
     <View style={styles.container}>
       {label && <Text style={styles.label}>{label}</Text>}
       <Pressable style={styles.input} onPress={open}>
-        <Text style={styles.calendarIcon}>📅</Text>
+        <Ionicons name="calendar-outline" size={18} color={Colors.timeRange} style={styles.calendarIcon} />
         <Text style={styles.inputText}>{formatDateLong(value)}</Text>
       </Pressable>
 
@@ -113,7 +114,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
   },
   calendarIcon: {
-    fontSize: 16,
     marginRight: 8,
   },
   inputText: {
