@@ -21,11 +21,15 @@ export interface ManualLog {
   task: string;
 }
 
+export interface ShiftSession {
+  clockInTime: number;
+  clockOutTime: number;
+  breaks: BreakRecord[];
+}
+
 export interface DayRecord {
   date: string;
-  clockInTime: number | null;
-  clockOutTime: number | null;
-  breaks: BreakRecord[];
+  shifts: ShiftSession[];
   manualLogs: ManualLog[];
 }
 
@@ -33,11 +37,33 @@ type HistoryMap = Record<string, DayRecord>;
 
 const EMPTY_DAY = (date: string): DayRecord => ({
   date,
-  clockInTime: null,
-  clockOutTime: null,
-  breaks: [],
+  shifts: [],
   manualLogs: [],
 });
+
+function migrateLegacy(raw: Record<string, any>): HistoryMap {
+  const result: HistoryMap = {};
+  for (const [key, val] of Object.entries(raw)) {
+    if (val.shifts) {
+      result[key] = val as DayRecord;
+    } else {
+      const shifts: ShiftSession[] = [];
+      if (val.clockInTime && val.clockOutTime) {
+        shifts.push({
+          clockInTime: val.clockInTime,
+          clockOutTime: val.clockOutTime,
+          breaks: val.breaks || [],
+        });
+      }
+      result[key] = {
+        date: val.date || key,
+        shifts,
+        manualLogs: val.manualLogs || [],
+      };
+    }
+  }
+  return result;
+}
 
 interface HistoryStore {
   isLoading: boolean;
@@ -64,9 +90,11 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     try {
       const stored = await AsyncStorage.getItem(HISTORY_KEY);
       if (stored) {
-        const parsed = JSON.parse(stored) as HistoryMap;
+        const raw = JSON.parse(stored);
+        const parsed = migrateLegacy(raw);
         setHistory(parsed);
         histRef.current = parsed;
+        await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(parsed));
       }
     } catch {
       // fall back to empty
@@ -91,13 +119,12 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     const dateKey = getDateKey(clockInTime);
     const current = histRef.current;
     const existing = current[dateKey] || EMPTY_DAY(dateKey);
+    const newSession: ShiftSession = { clockInTime, clockOutTime, breaks };
     const updated: HistoryMap = {
       ...current,
       [dateKey]: {
         ...existing,
-        clockInTime,
-        clockOutTime,
-        breaks,
+        shifts: [...existing.shifts, newSession],
       },
     };
     await persist(updated);
@@ -141,9 +168,9 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
 
   const computeDayMs = useCallback((record: DayRecord): number => {
     let total = 0;
-    if (record.clockInTime && record.clockOutTime) {
-      let shiftMs = record.clockOutTime - record.clockInTime;
-      const absentMs = record.breaks
+    for (const shift of record.shifts) {
+      let shiftMs = shift.clockOutTime - shift.clockInTime;
+      const absentMs = shift.breaks
         .filter((b) => b.exceeded)
         .reduce((sum, b) => sum + b.duration, 0);
       shiftMs -= absentMs;

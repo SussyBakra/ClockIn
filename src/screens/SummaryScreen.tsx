@@ -5,7 +5,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
 import { Fonts, FontSizes } from '../constants/typography';
-import { useHistoryStore, DayRecord } from '../hooks/useHistoryStore';
+import { useHistoryStore, DayRecord, ShiftSession } from '../hooks/useHistoryStore';
 import { useShiftStore } from '../hooks/useShiftStore';
 import {
   getWeekRange,
@@ -35,26 +35,9 @@ export default function SummaryScreen() {
     setWeekDays(days);
 
     const recs = historyStore.getWeekRecords();
-    const todayKey = getTodayKey();
-    const todayIdx = days.indexOf(todayKey);
-
-    if (todayIdx >= 0 && shiftStore.clockInTime) {
-      const liveRecord = { ...recs[todayIdx] };
-      if (!liveRecord.clockInTime) {
-        liveRecord.clockInTime = shiftStore.clockInTime;
-      }
-      if (!liveRecord.clockOutTime && shiftStore.clockOutTime) {
-        liveRecord.clockOutTime = shiftStore.clockOutTime;
-      }
-      if (shiftStore.breaks.length > 0) {
-        liveRecord.breaks = [...shiftStore.breaks];
-      }
-      recs[todayIdx] = liveRecord;
-    }
-
     setRecords(recs);
     setWeeklyTotalMs(historyStore.getWeeklyTotalMs());
-  }, [historyStore, shiftStore]);
+  }, [historyStore]);
 
   useFocusEffect(refreshData);
 
@@ -63,9 +46,9 @@ export default function SummaryScreen() {
 
   const getDayWorkedMs = (record: DayRecord): number => {
     let total = 0;
-    if (record.clockInTime && record.clockOutTime) {
-      let shiftMs = record.clockOutTime - record.clockInTime;
-      const absentMs = record.breaks
+    for (const shift of record.shifts) {
+      let shiftMs = shift.clockOutTime - shift.clockInTime;
+      const absentMs = shift.breaks
         .filter((b) => b.exceeded)
         .reduce((sum, b) => sum + b.duration, 0);
       shiftMs -= absentMs;
@@ -74,22 +57,35 @@ export default function SummaryScreen() {
     for (const log of record.manualLogs) {
       total += log.duration;
     }
+
+    if (isToday(record.date) && shiftStore.isClockedIn && shiftStore.clockInTime) {
+      const liveMs = Date.now() - shiftStore.clockInTime;
+      total += Math.max(0, liveMs);
+    }
+
     return total;
   };
 
   const openDayDetail = (record: DayRecord) => {
     const todayKey = getTodayKey();
     if (record.date === todayKey && shiftStore.clockInTime) {
-      const merged: DayRecord = {
-        ...record,
-        clockInTime: record.clockInTime || shiftStore.clockInTime,
-        clockOutTime: record.clockOutTime || shiftStore.clockOutTime,
-        breaks: shiftStore.breaks.length > 0 ? [...shiftStore.breaks] : record.breaks,
-        manualLogs: [...record.manualLogs],
-      };
+      const merged: DayRecord = { ...record, shifts: [...record.shifts], manualLogs: [...record.manualLogs] };
+      if (shiftStore.isClockedIn || shiftStore.clockOutTime) {
+        const liveShift: ShiftSession = {
+          clockInTime: shiftStore.clockInTime,
+          clockOutTime: shiftStore.clockOutTime || Date.now(),
+          breaks: [...shiftStore.breaks],
+        };
+        const alreadyArchived = merged.shifts.some(
+          (s) => s.clockInTime === liveShift.clockInTime
+        );
+        if (!alreadyArchived) {
+          merged.shifts = [...merged.shifts, liveShift];
+        }
+      }
       setSelectedDay(merged);
     } else {
-      setSelectedDay({ ...record, manualLogs: [...record.manualLogs] });
+      setSelectedDay({ ...record, shifts: [...record.shifts], manualLogs: [...record.manualLogs] });
     }
   };
 
@@ -106,7 +102,7 @@ export default function SummaryScreen() {
             await historyStore.deleteManualLog(dateKey, logId);
             refreshData();
             const updated = historyStore.getDayRecord(dateKey);
-            if (updated.clockInTime || updated.manualLogs.length > 0) {
+            if (updated.shifts.length > 0 || updated.manualLogs.length > 0) {
               setSelectedDay({ ...updated });
             } else {
               setSelectedDay(null);
@@ -117,9 +113,19 @@ export default function SummaryScreen() {
     );
   };
 
-  const selectedRows = selectedDay?.clockInTime
-    ? buildActivityRows(selectedDay.clockInTime, selectedDay.clockOutTime, selectedDay.breaks)
-    : [];
+  const buildAllShiftRows = (shifts: ShiftSession[]) => {
+    const allRows: ReturnType<typeof buildActivityRows> = [];
+    shifts.forEach((shift, shiftIdx) => {
+      const rows = buildActivityRows(shift.clockInTime, shift.clockOutTime, shift.breaks);
+      if (shiftIdx > 0 && allRows.length > 0) {
+        allRows[allRows.length - 1] = { ...allRows[allRows.length - 1] };
+      }
+      allRows.push(...rows);
+    });
+    return allRows;
+  };
+
+  const selectedRows = selectedDay ? buildAllShiftRows(selectedDay.shifts) : [];
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -190,9 +196,14 @@ export default function SummaryScreen() {
         <Pressable style={styles.modalOverlay} onPress={() => setSelectedDay(null)}>
           <Pressable style={styles.modalCard} onPress={() => {}}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {selectedDay ? `${getDayName(selectedDay.date)} - ${formatDateShort(selectedDay.date)}` : ''}
-              </Text>
+              <View style={styles.modalTitleRow}>
+                <Text style={styles.modalTitleDay}>
+                  {selectedDay ? getDayName(selectedDay.date) : ''}
+                </Text>
+                <Text style={styles.modalTitleDate}>
+                  {selectedDay ? ` / ${formatDateShort(selectedDay.date)}` : ''}
+                </Text>
+              </View>
               <Pressable onPress={() => setSelectedDay(null)}>
                 <Ionicons name="close" size={22} color={Colors.normalTitle} />
               </Pressable>
@@ -203,7 +214,7 @@ export default function SummaryScreen() {
                 <View style={styles.activityCard}>
                   {selectedRows.map((row, idx) => (
                     <ActivityRow
-                      key={`${row.type}-${row.startTime}`}
+                      key={`${row.type}-${row.startTime}-${idx}`}
                       type={row.type}
                       label={row.label}
                       startTime={row.startTime}
@@ -434,12 +445,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  modalTitle: {
+  modalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    flex: 1,
+    marginRight: 8,
+  },
+  modalTitleDay: {
     fontFamily: Fonts.bold,
     fontSize: FontSizes['2xl'],
     color: Colors.normalTitle,
-    flex: 1,
-    marginRight: 8,
+  },
+  modalTitleDate: {
+    fontFamily: Fonts.bold,
+    fontSize: FontSizes.md,
+    color: '#71717A',
   },
   modalScroll: {
     flexGrow: 0,

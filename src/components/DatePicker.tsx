@@ -47,7 +47,7 @@ export default function DatePicker({ value, onChange, label }: Props) {
     <View style={styles.container}>
       {label && <Text style={styles.label}>{label}</Text>}
       <Pressable style={styles.input} onPress={open}>
-        <Ionicons name="calendar-outline" size={18} color={Colors.timeRange} style={styles.calendarIcon} />
+        <Ionicons name="calendar-outline" size={18} color={Colors.normalTitle} style={styles.calendarIcon} />
         <Text style={styles.inputText}>{formatDateLong(value)}</Text>
       </Pressable>
 

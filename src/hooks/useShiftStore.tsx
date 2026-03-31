@@ -115,15 +115,27 @@ export function ShiftProvider({ children }: { children: React.ReactNode }) {
         const stored = await AsyncStorage.getItem(HISTORY_KEY);
         const history = stored ? JSON.parse(stored) : {};
         const dateKey = getDateKey(d.clockInTime);
-        const existing = history[dateKey] || {
-          date: dateKey, clockInTime: null, clockOutTime: null, breaks: [], manualLogs: [],
-        };
-        history[dateKey] = {
-          ...existing,
+        const existing = history[dateKey] || { date: dateKey, shifts: [], manualLogs: [] };
+        if (!existing.shifts) {
+          const legacyShifts = [];
+          if (existing.clockInTime && existing.clockOutTime) {
+            legacyShifts.push({
+              clockInTime: existing.clockInTime,
+              clockOutTime: existing.clockOutTime,
+              breaks: existing.breaks || [],
+            });
+          }
+          existing.shifts = legacyShifts;
+          delete existing.clockInTime;
+          delete existing.clockOutTime;
+          delete existing.breaks;
+        }
+        existing.shifts.push({
           clockInTime: d.clockInTime,
           clockOutTime,
           breaks,
-        };
+        });
+        history[dateKey] = existing;
         await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(history));
       } catch {
         // archive failed silently

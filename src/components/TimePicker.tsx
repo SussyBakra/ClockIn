@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: Fonts.bold,
     fontSize: 12,
-    color: Colors.timeRange,
+    color: Colors.normalTitle,
     marginBottom: 6,
   },
   row: {

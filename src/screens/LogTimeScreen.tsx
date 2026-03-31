@@ -12,6 +12,15 @@ import { formatTimeOfDay } from '../utils/timeUtils';
 import DatePicker from '../components/DatePicker';
 import TimePicker from '../components/TimePicker';
 
+function parseHM(h: string, m: string): number {
+  return (parseInt(h, 10) || 0) * 3600000 + (parseInt(m, 10) || 0) * 60000;
+}
+
+function msToHM(ms: number): { h: string; m: string } {
+  const totalMin = Math.floor(ms / 60000);
+  return { h: String(Math.floor(totalMin / 60)), m: String(totalMin % 60) };
+}
+
 export default function LogTimeScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
@@ -28,8 +37,10 @@ export default function LogTimeScreen() {
   const [endTime, setEndTime] = useState(todayEnd.getTime());
   const [task, setTask] = useState('');
 
-  const [targetHours, setTargetHours] = useState('8');
-  const [workedOverride, setWorkedOverride] = useState('');
+  const [targetH, setTargetH] = useState('8');
+  const [targetM, setTargetM] = useState('0');
+  const [workedH, setWorkedH] = useState('');
+  const [workedM, setWorkedM] = useState('');
   const [currentTime, setCurrentTime] = useState(Date.now());
 
   useEffect(() => {
@@ -42,14 +53,17 @@ export default function LogTimeScreen() {
     ? Date.now() - shiftStore.clockInTime
     : 0;
   const totalTodayMs = todayWorkedMs + liveWorkedMs;
-  const workedHours = workedOverride !== ''
-    ? parseFloat(workedOverride) || 0
-    : totalTodayMs / 3600000;
 
-  const target = parseFloat(targetHours) || 8;
-  const remainingMs = Math.max(0, (target - workedHours) * 3600000);
+  const hasWorkedOverride = workedH !== '' || workedM !== '';
+  const workedMs = hasWorkedOverride
+    ? parseHM(workedH || '0', workedM || '0')
+    : totalTodayMs;
+
+  const targetMs = parseHM(targetH || '8', targetM || '0');
+  const remainingMs = Math.max(0, targetMs - workedMs);
   const departureTime = currentTime + remainingMs;
-  const leaveNowTotal = workedHours * 3600000;
+
+  const autoWorked = msToHM(totalTodayMs);
 
   const clearForm = () => {
     const s = new Date();
@@ -99,35 +113,37 @@ export default function LogTimeScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <DatePicker label="Date" value={date} onChange={setDate} />
+        <View style={styles.formCard}>
+          <DatePicker label="Date" value={date} onChange={setDate} />
 
-        <View style={styles.timeRow}>
-          <View style={styles.timeCol}>
-            <TimePicker label="Start Time" value={startTime} onChange={setStartTime} />
+          <View style={styles.timeRow}>
+            <View style={styles.timeCol}>
+              <TimePicker label="Start Time" value={startTime} onChange={setStartTime} />
+            </View>
+            <View style={styles.timeCol}>
+              <TimePicker label="End Time" value={endTime} onChange={setEndTime} />
+            </View>
           </View>
-          <View style={styles.timeCol}>
-            <TimePicker label="End Time" value={endTime} onChange={setEndTime} />
+
+          <View style={styles.taskSection}>
+            <Text style={styles.fieldLabel}>Task</Text>
+            <TextInput
+              style={styles.taskInput}
+              value={task}
+              onChangeText={setTask}
+              placeholder="What did you work on?"
+              placeholderTextColor={Colors.timeRange}
+            />
           </View>
+
+          <Pressable style={styles.saveBtn} onPress={handleSave}>
+            <Text style={styles.saveBtnText}>Save Log</Text>
+          </Pressable>
+
+          <Pressable style={styles.cancelBtn} onPress={clearForm}>
+            <Text style={styles.cancelBtnText}>Cancel</Text>
+          </Pressable>
         </View>
-
-        <View style={styles.taskSection}>
-          <Text style={styles.fieldLabel}>Task</Text>
-          <TextInput
-            style={styles.taskInput}
-            value={task}
-            onChangeText={setTask}
-            placeholder="What did you work on?"
-            placeholderTextColor={Colors.timeRange}
-          />
-        </View>
-
-        <Pressable style={styles.saveBtn} onPress={handleSave}>
-          <Text style={styles.saveBtnText}>Save Log</Text>
-        </Pressable>
-
-        <Pressable style={styles.cancelBtn} onPress={clearForm}>
-          <Text style={styles.cancelBtnText}>Cancel</Text>
-        </Pressable>
 
         <View style={styles.calcCard}>
           <View style={styles.calcTitleRow}>
@@ -137,26 +153,56 @@ export default function LogTimeScreen() {
           </View>
 
           <Text style={styles.calcLabel}>Target Hours for Today</Text>
-          <TextInput
-            style={styles.calcInput}
-            value={targetHours}
-            onChangeText={setTargetHours}
-            keyboardType="decimal-pad"
-            placeholder="hours : mins"
-            placeholderTextColor={Colors.timeRange}
-            selectTextOnFocus
-          />
+          <View style={styles.hmRow}>
+            <TextInput
+              style={styles.hmInput}
+              value={targetH}
+              onChangeText={setTargetH}
+              keyboardType="number-pad"
+              maxLength={2}
+              selectTextOnFocus
+            />
+            <Text style={styles.hmUnit}>hrs</Text>
+            <Text style={styles.hmSep}>:</Text>
+            <TextInput
+              style={styles.hmInput}
+              value={targetM}
+              onChangeText={setTargetM}
+              keyboardType="number-pad"
+              maxLength={2}
+              placeholder="0"
+              placeholderTextColor={Colors.timeRange}
+              selectTextOnFocus
+            />
+            <Text style={styles.hmUnit}>mins</Text>
+          </View>
 
           <Text style={styles.calcLabel}>Hours Already Worked</Text>
-          <TextInput
-            style={styles.calcInput}
-            value={workedOverride !== '' ? workedOverride : workedHours.toFixed(2)}
-            onChangeText={setWorkedOverride}
-            keyboardType="decimal-pad"
-            placeholder="hours : mins"
-            placeholderTextColor={Colors.timeRange}
-            selectTextOnFocus
-          />
+          <View style={styles.hmRow}>
+            <TextInput
+              style={styles.hmInput}
+              value={hasWorkedOverride ? workedH : autoWorked.h}
+              onChangeText={setWorkedH}
+              keyboardType="number-pad"
+              maxLength={2}
+              placeholder={autoWorked.h}
+              placeholderTextColor={Colors.timeRange}
+              selectTextOnFocus
+            />
+            <Text style={styles.hmUnit}>hrs</Text>
+            <Text style={styles.hmSep}>:</Text>
+            <TextInput
+              style={styles.hmInput}
+              value={hasWorkedOverride ? workedM : autoWorked.m}
+              onChangeText={setWorkedM}
+              keyboardType="number-pad"
+              maxLength={2}
+              placeholder={autoWorked.m}
+              placeholderTextColor={Colors.timeRange}
+              selectTextOnFocus
+            />
+            <Text style={styles.hmUnit}>mins</Text>
+          </View>
 
           <Text style={styles.calcLabel}>Current Time</Text>
           <View style={styles.calcTimeDisplay}>
@@ -167,7 +213,7 @@ export default function LogTimeScreen() {
 
           <View style={styles.resultRow}>
             <Text style={styles.resultLabel}>
-              To complete {target}h, clock out at:
+              To complete {formatHoursMinutes(targetMs)}, clock out at:
             </Text>
             <Text style={styles.resultValue}>{formatTimeOfDay(departureTime)}</Text>
           </View>
@@ -179,7 +225,7 @@ export default function LogTimeScreen() {
 
           <View style={[styles.resultRow, { borderBottomWidth: 0 }]}>
             <Text style={styles.resultLabel}>If you leave now, today&apos;s total:</Text>
-            <Text style={styles.resultValue}>{formatHoursMinutes(leaveNowTotal)}</Text>
+            <Text style={styles.resultValue}>{formatHoursMinutes(workedMs)}</Text>
           </View>
         </View>
       </ScrollView>
@@ -228,6 +274,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
   },
+  formCard: {
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 16,
+  },
   timeRow: {
     flexDirection: 'row',
     gap: 12,
@@ -237,7 +291,7 @@ const styles = StyleSheet.create({
   },
   taskSection: {
     marginTop: 8,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   fieldLabel: {
     fontFamily: Fonts.bold,
@@ -277,7 +331,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.white,
-    marginBottom: 24,
   },
   cancelBtnText: {
     fontFamily: Fonts.bold,
@@ -316,16 +369,34 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     marginTop: 12,
   },
-  calcInput: {
+  hmRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  hmInput: {
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: 8,
+    width: 52,
     height: 40,
-    paddingHorizontal: 12,
+    textAlign: 'center',
     fontFamily: Fonts.bold,
     fontSize: 14,
     color: Colors.normalTitle,
     backgroundColor: Colors.white,
+  },
+  hmUnit: {
+    fontFamily: Fonts.bold,
+    fontSize: 12,
+    color: Colors.statLabel,
+    marginLeft: 4,
+    marginRight: 4,
+  },
+  hmSep: {
+    fontFamily: Fonts.bold,
+    fontSize: 16,
+    color: Colors.normalTitle,
+    marginHorizontal: 6,
   },
   calcTimeDisplay: {
     borderWidth: 1,
