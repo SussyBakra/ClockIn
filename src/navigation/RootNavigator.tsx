@@ -6,6 +6,8 @@ import { Colors } from '../constants/colors';
 import type { RootStackParamList, TabParamList } from '../types/navigation';
 import LaunchScreen from '../screens/LaunchScreen';
 import HomeScreen from '../screens/HomeScreen';
+import LogTimeScreen from '../screens/LogTimeScreen';
+import SummaryScreen from '../screens/SummaryScreen';
 import PlaceholderScreen from '../screens/PlaceholderScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -39,8 +41,8 @@ function TabNavigator() {
         }}
       />
       <Tab.Screen
-        name="Clock"
-        component={PlaceholderScreen}
+        name="LogTime"
+        component={LogTimeScreen}
         options={{
           tabBarIcon: ({ color }) => (
             <Ionicons name="time-outline" size={20} color={color} />
@@ -48,8 +50,8 @@ function TabNavigator() {
         }}
       />
       <Tab.Screen
-        name="Calendar"
-        component={PlaceholderScreen}
+        name="Summary"
+        component={SummaryScreen}
         options={{
           tabBarIcon: ({ color }) => (
             <Ionicons name="calendar-outline" size={20} color={color} />

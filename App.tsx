@@ -12,6 +12,7 @@ import {
 } from '@expo-google-fonts/inter';
 import { StatusBar } from 'expo-status-bar';
 import { ShiftProvider } from './src/hooks/useShiftStore';
+import { HistoryProvider } from './src/hooks/useHistoryStore';
 import RootNavigator from './src/navigation/RootNavigator';
 
 export default function App() {
@@ -33,12 +34,14 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <ShiftProvider>
-          <NavigationContainer>
-            <RootNavigator />
-            <StatusBar style="dark" />
-          </NavigationContainer>
-        </ShiftProvider>
+        <HistoryProvider>
+          <ShiftProvider>
+            <NavigationContainer>
+              <RootNavigator />
+              <StatusBar style="dark" />
+            </NavigationContainer>
+          </ShiftProvider>
+        </HistoryProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

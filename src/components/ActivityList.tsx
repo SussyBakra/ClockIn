@@ -2,67 +2,15 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../constants/colors';
 import { Fonts, FontSizes } from '../constants/typography';
-import ActivityRow, { RowType } from './ActivityRow';
+import ActivityRow from './ActivityRow';
 import EditActivityModal, { EditRowData } from './EditActivityModal';
 import { useShiftStore, BreakRecord } from '../hooks/useShiftStore';
+import { buildActivityRows } from '../utils/buildActivityRows';
 
 interface Props {
   clockInTime: number | null;
   clockOutTime: number | null;
   breaks: BreakRecord[];
-}
-
-interface RowData {
-  type: RowType;
-  label: string;
-  startTime: number;
-  endTime?: number;
-  duration?: number;
-  breakIndex?: number;
-}
-
-function buildRows(
-  clockInTime: number,
-  clockOutTime: number | null,
-  breaks: BreakRecord[],
-): RowData[] {
-  const rows: RowData[] = [];
-
-  rows.push({ type: 'clockIn', label: 'Clocked In', startTime: clockInTime });
-
-  let breakCount = 0;
-  breaks.forEach((b, idx) => {
-    if (b.exceeded) {
-      rows.push({
-        type: 'absent',
-        label: 'Absent',
-        startTime: b.startTime,
-        endTime: b.endTime,
-        duration: b.duration,
-        breakIndex: idx,
-      });
-    } else {
-      breakCount++;
-      rows.push({
-        type: 'break',
-        label: `Break-${breakCount}`,
-        startTime: b.startTime,
-        endTime: b.endTime,
-        duration: b.duration,
-        breakIndex: idx,
-      });
-    }
-  });
-
-  if (clockOutTime) {
-    rows.push({
-      type: 'clockOut',
-      label: 'Clocked Out',
-      startTime: clockOutTime,
-    });
-  }
-
-  return rows;
 }
 
 export default function ActivityList({
@@ -75,9 +23,9 @@ export default function ActivityList({
 
   if (!clockInTime) return null;
 
-  const rows = buildRows(clockInTime, clockOutTime, breaks);
+  const rows = buildActivityRows(clockInTime, clockOutTime, breaks);
 
-  const handleRowPress = (row: RowData) => {
+  const handleRowPress = (row: typeof rows[0]) => {
     setSelectedRow({
       type: row.type,
       label: row.label,

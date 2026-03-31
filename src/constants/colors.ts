@@ -49,4 +49,13 @@ export const Colors = {
 
   tabInactive: '#A1A1AA',
   tabActive: '#09090B',
+
+  progressBarBg: '#E4E4E7',
+  progressBarFill: '#09090B',
+  cardBgZinc: '#F4F4F5',
+  inputBg: '#FFFFFF',
+  todayHighlight: '#F4F4F5',
+  todayAccent: '#09090B',
+  headerIcon: '#09090B',
+  noData: '#A9A7B4',
 };

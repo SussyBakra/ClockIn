@@ -7,6 +7,7 @@ import React, {
   useRef,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getDateKey } from '../utils/dateUtils';
 
 const STORAGE_KEY = '@clockin_shift';
 
@@ -99,13 +100,35 @@ export function ShiftProvider({ children }: { children: React.ReactNode }) {
       ];
     }
 
+    const clockOutTime = Date.now();
     await persist({
       ...d,
-      clockOutTime: Date.now(),
+      clockOutTime,
       isClockedIn: false,
       currentBreak: null,
       breaks,
     });
+
+    if (d.clockInTime) {
+      try {
+        const HISTORY_KEY = '@clockin_history';
+        const stored = await AsyncStorage.getItem(HISTORY_KEY);
+        const history = stored ? JSON.parse(stored) : {};
+        const dateKey = getDateKey(d.clockInTime);
+        const existing = history[dateKey] || {
+          date: dateKey, clockInTime: null, clockOutTime: null, breaks: [], manualLogs: [],
+        };
+        history[dateKey] = {
+          ...existing,
+          clockInTime: d.clockInTime,
+          clockOutTime,
+          breaks,
+        };
+        await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+      } catch {
+        // archive failed silently
+      }
+    }
   }, [persist]);
 
   const startBreak = useCallback(async () => {

@@ -5,7 +5,7 @@ export type RootStackParamList = {
 
 export type TabParamList = {
   Home: undefined;
-  Clock: undefined;
-  Calendar: undefined;
+  LogTime: undefined;
+  Summary: undefined;
   Settings: undefined;
 };
