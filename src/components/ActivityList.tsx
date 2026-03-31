@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../constants/colors';
 import { Fonts, FontSizes } from '../constants/typography';
 import ActivityRow, { RowType } from './ActivityRow';
-import { BreakRecord } from '../hooks/useShiftStore';
+import EditActivityModal, { EditRowData } from './EditActivityModal';
+import { useShiftStore, BreakRecord } from '../hooks/useShiftStore';
 
 interface Props {
   clockInTime: number | null;
@@ -17,6 +18,7 @@ interface RowData {
   startTime: number;
   endTime?: number;
   duration?: number;
+  breakIndex?: number;
 }
 
 function buildRows(
@@ -29,7 +31,7 @@ function buildRows(
   rows.push({ type: 'clockIn', label: 'Clocked In', startTime: clockInTime });
 
   let breakCount = 0;
-  breaks.forEach((b) => {
+  breaks.forEach((b, idx) => {
     if (b.exceeded) {
       rows.push({
         type: 'absent',
@@ -37,6 +39,7 @@ function buildRows(
         startTime: b.startTime,
         endTime: b.endTime,
         duration: b.duration,
+        breakIndex: idx,
       });
     } else {
       breakCount++;
@@ -46,6 +49,7 @@ function buildRows(
         startTime: b.startTime,
         endTime: b.endTime,
         duration: b.duration,
+        breakIndex: idx,
       });
     }
   });
@@ -66,9 +70,22 @@ export default function ActivityList({
   clockOutTime,
   breaks,
 }: Props) {
+  const store = useShiftStore();
+  const [selectedRow, setSelectedRow] = useState<EditRowData | null>(null);
+
   if (!clockInTime) return null;
 
   const rows = buildRows(clockInTime, clockOutTime, breaks);
+
+  const handleRowPress = (row: RowData) => {
+    setSelectedRow({
+      type: row.type,
+      label: row.label,
+      startTime: row.startTime,
+      endTime: row.endTime,
+      breakIndex: row.breakIndex,
+    });
+  };
 
   return (
     <View>
@@ -83,9 +100,20 @@ export default function ActivityList({
             endTime={row.endTime}
             duration={row.duration}
             isLast={i === rows.length - 1}
+            onPress={() => handleRowPress(row)}
           />
         ))}
       </View>
+
+      <EditActivityModal
+        visible={selectedRow != null}
+        row={selectedRow}
+        onClose={() => setSelectedRow(null)}
+        onSaveClockIn={(time) => store.updateClockInTime(time)}
+        onSaveClockOut={(time) => store.updateClockOutTime(time)}
+        onSaveBreak={(idx, start, end) => store.updateBreak(idx, start, end)}
+        onDeleteBreak={(idx) => store.deleteBreak(idx)}
+      />
     </View>
   );
 }

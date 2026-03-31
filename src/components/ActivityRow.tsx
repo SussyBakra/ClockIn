@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Colors } from '../constants/colors';
 import { Fonts, FontSizes } from '../constants/typography';
 import { formatTimeOfDay, formatDuration } from '../utils/timeUtils';
@@ -13,6 +13,7 @@ interface Props {
   endTime?: number;
   duration?: number;
   isLast?: boolean;
+  onPress?: () => void;
 }
 
 export default function ActivityRow({
@@ -22,6 +23,7 @@ export default function ActivityRow({
   endTime,
   duration,
   isLast,
+  onPress,
 }: Props) {
   const titleColor =
     type === 'absent' ? Colors.absentTitle : Colors.normalTitle;
@@ -46,7 +48,10 @@ export default function ActivityRow({
         };
 
   return (
-    <View style={[styles.row, !isLast && styles.divider]}>
+    <Pressable
+      style={[styles.row, !isLast && styles.divider]}
+      onPress={onPress}
+    >
       <View style={styles.info}>
         <Text style={[styles.title, { color: titleColor }]}>{label}</Text>
         <Text style={styles.time}>{timeText}</Text>
@@ -63,7 +68,7 @@ export default function ActivityRow({
           </Text>
         </View>
       )}
-    </View>
+    </Pressable>
   );
 }
 

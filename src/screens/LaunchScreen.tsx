@@ -11,17 +11,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Colors } from '../constants/colors';
-import { Fonts, FontSizes } from '../constants/typography';
+import { Fonts } from '../constants/typography';
 import { useShiftStore } from '../hooks/useShiftStore';
 import type { RootStackParamList } from '../types/navigation';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Launch'>;
 
 const { width } = Dimensions.get('window');
-const ROW_COUNT = 14;
-const SCROLL_DISTANCE = 400;
+const ROW_COUNT = 20;
+const SCROLL_DISTANCE = 800;
 const SINGLE_UNIT = 'ClockIn   ';
-const FULL_TEXT = SINGLE_UNIT.repeat(12);
+const FULL_TEXT = SINGLE_UNIT.repeat(20);
 
 function ScrollingRow({ index }: { index: number }) {
   const goLeft = index % 2 === 0;
@@ -30,7 +30,7 @@ function ScrollingRow({ index }: { index: number }) {
   useEffect(() => {
     translateX.value = withRepeat(
       withTiming(goLeft ? -SCROLL_DISTANCE : 0, {
-        duration: 20000,
+        duration: 25000,
         easing: Easing.linear,
       }),
       -1,
@@ -53,12 +53,6 @@ export default function LaunchScreen() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const { isClockedIn, isLoading, clockIn } = useShiftStore();
-
-  useEffect(() => {
-    if (!isLoading && isClockedIn) {
-      navigation.replace('Main');
-    }
-  }, [isLoading, isClockedIn, navigation]);
 
   const handleClockIn = async () => {
     await clockIn();
@@ -113,15 +107,15 @@ const styles = StyleSheet.create({
   },
   rotatedContainer: {
     transform: [{ rotate: '-15deg' }],
-    width: width * 3,
+    width: width * 4,
     alignItems: 'flex-start',
   },
   textRow: {
-    marginVertical: 6,
+    marginVertical: 2,
   },
   bgText: {
     fontFamily: Fonts.bold,
-    fontSize: FontSizes.bgText,
+    fontSize: 72,
     color: Colors.bgText,
     letterSpacing: 2,
   },
@@ -147,7 +141,7 @@ const styles = StyleSheet.create({
   },
   clockInText: {
     fontFamily: Fonts.bold,
-    fontSize: FontSizes['4xl'],
+    fontSize: 18,
     color: Colors.primaryButtonText,
   },
   skipBtn: {
@@ -155,7 +149,7 @@ const styles = StyleSheet.create({
   },
   skipText: {
     fontFamily: Fonts.bold,
-    fontSize: FontSizes.xl,
+    fontSize: 15,
     color: Colors.skipText,
   },
 });

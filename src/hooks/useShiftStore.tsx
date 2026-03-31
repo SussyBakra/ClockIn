@@ -40,6 +40,10 @@ interface ShiftStore extends ShiftData {
   startBreak: () => Promise<void>;
   endBreak: () => Promise<void>;
   resetShift: () => Promise<void>;
+  updateClockInTime: (time: number) => Promise<void>;
+  updateClockOutTime: (time: number) => Promise<void>;
+  updateBreak: (index: number, startTime: number, endTime: number) => Promise<void>;
+  deleteBreak: (index: number) => Promise<void>;
 }
 
 const ShiftContext = createContext<ShiftStore | null>(null);
@@ -131,6 +135,30 @@ export function ShiftProvider({ children }: { children: React.ReactNode }) {
     await persist(DEFAULT_SHIFT);
   }, [persist]);
 
+  const updateClockInTime = useCallback(async (time: number) => {
+    const d = dataRef.current;
+    await persist({ ...d, clockInTime: time });
+  }, [persist]);
+
+  const updateClockOutTime = useCallback(async (time: number) => {
+    const d = dataRef.current;
+    await persist({ ...d, clockOutTime: time });
+  }, [persist]);
+
+  const updateBreak = useCallback(async (index: number, startTime: number, endTime: number) => {
+    const d = dataRef.current;
+    const duration = endTime - startTime;
+    const updated = [...d.breaks];
+    updated[index] = { startTime, endTime, duration, exceeded: duration > 600000 };
+    await persist({ ...d, breaks: updated });
+  }, [persist]);
+
+  const deleteBreak = useCallback(async (index: number) => {
+    const d = dataRef.current;
+    const updated = d.breaks.filter((_, i) => i !== index);
+    await persist({ ...d, breaks: updated });
+  }, [persist]);
+
   return (
     <ShiftContext.Provider
       value={{
@@ -141,6 +169,10 @@ export function ShiftProvider({ children }: { children: React.ReactNode }) {
         startBreak,
         endBreak,
         resetShift,
+        updateClockInTime,
+        updateClockOutTime,
+        updateBreak,
+        deleteBreak,
       }}
     >
       {children}

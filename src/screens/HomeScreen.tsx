@@ -47,8 +47,6 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <SideHandle onPress={() => navigation.navigate('Launch')} />
-
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[
@@ -95,6 +93,8 @@ export default function HomeScreen() {
           />
         </View>
       </ScrollView>
+
+      <SideHandle onPress={() => navigation.navigate('Launch')} />
     </View>
   );
 }
