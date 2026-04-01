@@ -1,12 +1,5 @@
-import React, { useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet, Dimensions } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  Easing,
-} from 'react-native-reanimated';
+import React from 'react';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -14,40 +7,9 @@ import { Colors } from '../constants/colors';
 import { Fonts } from '../constants/typography';
 import { useShiftStore } from '../hooks/useShiftStore';
 import type { RootStackParamList } from '../types/navigation';
+import BrutalistTextMassBackground from '../components/BrutalistTextMassBackground';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Launch'>;
-
-const { width } = Dimensions.get('window');
-const ROW_COUNT = 20;
-const SCROLL_DISTANCE = 800;
-const SINGLE_UNIT = 'ClockIn   ';
-const FULL_TEXT = SINGLE_UNIT.repeat(20);
-
-function ScrollingRow({ index }: { index: number }) {
-  const goLeft = index % 2 === 0;
-  const translateX = useSharedValue(goLeft ? 0 : -SCROLL_DISTANCE);
-
-  useEffect(() => {
-    translateX.value = withRepeat(
-      withTiming(goLeft ? -SCROLL_DISTANCE : 0, {
-        duration: 25000,
-        easing: Easing.linear,
-      }),
-      -1,
-      false,
-    );
-  }, []);
-
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
-  }));
-
-  return (
-    <Animated.View style={[styles.textRow, animStyle]}>
-      <Text style={styles.bgText}>{FULL_TEXT}</Text>
-    </Animated.View>
-  );
-}
 
 export default function LaunchScreen() {
   const navigation = useNavigation<Nav>();
@@ -67,13 +29,7 @@ export default function LaunchScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.bgContainer}>
-        <View style={styles.rotatedContainer}>
-          {Array.from({ length: ROW_COUNT }).map((_, i) => (
-            <ScrollingRow key={i} index={i} />
-          ))}
-        </View>
-      </View>
+      <BrutalistTextMassBackground />
 
       <View style={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
         <View style={styles.buttonContainer}>
@@ -98,26 +54,6 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: Colors.screenBgLaunch,
-  },
-  bgContainer: {
-    ...StyleSheet.absoluteFillObject,
-    overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  rotatedContainer: {
-    transform: [{ rotate: '-15deg' }],
-    width: width * 4,
-    alignItems: 'flex-start',
-  },
-  textRow: {
-    marginVertical: 2,
-  },
-  bgText: {
-    fontFamily: Fonts.bold,
-    fontSize: 72,
-    color: Colors.bgText,
-    letterSpacing: 2,
   },
   content: {
     flex: 1,

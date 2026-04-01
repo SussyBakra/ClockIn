@@ -9,6 +9,7 @@ import {
   Inter_500Medium,
   Inter_600SemiBold,
   Inter_700Bold,
+  Inter_900Black,
 } from '@expo-google-fonts/inter';
 import { StatusBar } from 'expo-status-bar';
 import { ShiftProvider } from './src/hooks/useShiftStore';
@@ -21,6 +22,7 @@ export default function App() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    Inter_900Black,
   });
 
   if (!fontsLoaded) {
