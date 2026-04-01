@@ -23,7 +23,8 @@ export interface ManualLog {
 
 export interface ShiftSession {
   clockInTime: number;
-  clockOutTime: number;
+  /** Null while a shift is still active (UI merge only); archived sessions always have a number. */
+  clockOutTime: number | null;
   breaks: BreakRecord[];
 }
 
@@ -95,6 +96,9 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
         setHistory(parsed);
         histRef.current = parsed;
         await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(parsed));
+      } else {
+        setHistory({});
+        histRef.current = {};
       }
     } catch {
       // fall back to empty
@@ -169,6 +173,7 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
   const computeDayMs = useCallback((record: DayRecord): number => {
     let total = 0;
     for (const shift of record.shifts) {
+      if (shift.clockOutTime == null) continue;
       let shiftMs = shift.clockOutTime - shift.clockInTime;
       const absentMs = shift.breaks
         .filter((b) => b.exceeded)

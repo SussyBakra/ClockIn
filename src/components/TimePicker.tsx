@@ -7,6 +7,8 @@ interface Props {
   value: number;
   onChange: (timestamp: number) => void;
   label?: string;
+  /** Wider row: hour/minute inputs flex to fill width (e.g. Log Time form). */
+  fullWidth?: boolean;
 }
 
 function decompose(ts: number) {
@@ -26,7 +28,7 @@ function recompose(date: Date, h: number, m: number, ampm: 'AM' | 'PM'): number 
   return result.getTime();
 }
 
-export default function TimePicker({ value, onChange, label }: Props) {
+export default function TimePicker({ value, onChange, label, fullWidth }: Props) {
   const parts = decompose(value);
   const [hourStr, setHourStr] = useState(String(parts.h));
   const [minStr, setMinStr] = useState(String(parts.m).padStart(2, '0'));
@@ -52,11 +54,11 @@ export default function TimePicker({ value, onChange, label }: Props) {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, fullWidth && styles.containerFull]}>
       {label && <Text style={styles.label}>{label}</Text>}
-      <View style={styles.row}>
+      <View style={[styles.row, fullWidth && styles.rowFull]}>
         <TextInput
-          style={styles.input}
+          style={[styles.input, fullWidth && styles.inputFlex]}
           value={hourStr}
           onChangeText={setHourStr}
           onBlur={() => commit(hourStr, minStr, ampm)}
@@ -66,7 +68,7 @@ export default function TimePicker({ value, onChange, label }: Props) {
         />
         <Text style={styles.colon}>:</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, fullWidth && styles.inputFlex]}
           value={minStr}
           onChangeText={setMinStr}
           onBlur={() => commit(hourStr, minStr, ampm)}
@@ -74,7 +76,7 @@ export default function TimePicker({ value, onChange, label }: Props) {
           maxLength={2}
           selectTextOnFocus
         />
-        <Pressable style={styles.ampmBtn} onPress={toggleAmPm}>
+        <Pressable style={[styles.ampmBtn, fullWidth && styles.ampmBtnFull]} onPress={toggleAmPm}>
           <Text style={styles.ampmText}>{ampm}</Text>
         </Pressable>
       </View>
@@ -86,6 +88,10 @@ const styles = StyleSheet.create({
   container: {
     marginVertical: 8,
   },
+  containerFull: {
+    marginVertical: 0,
+    width: '100%',
+  },
   label: {
     fontFamily: Fonts.bold,
     fontSize: 12,
@@ -94,6 +100,10 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
+    alignItems: 'center',
+  },
+  rowFull: {
+    width: '100%',
     alignItems: 'center',
   },
   input: {
@@ -108,11 +118,16 @@ const styles = StyleSheet.create({
     color: Colors.normalTitle,
     backgroundColor: Colors.white,
   },
+  inputFlex: {
+    flex: 1,
+    width: undefined,
+    minWidth: 0,
+  },
   colon: {
     fontFamily: Fonts.bold,
     fontSize: 18,
     color: Colors.normalTitle,
-    marginHorizontal: 4,
+    marginHorizontal: 8,
   },
   ampmBtn: {
     marginLeft: 8,
@@ -121,9 +136,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     height: 40,
+    minWidth: 52,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: Colors.timerCardBg,
+  },
+  ampmBtnFull: {
+    flexShrink: 0,
+    marginLeft: 10,
   },
   ampmText: {
     fontFamily: Fonts.bold,

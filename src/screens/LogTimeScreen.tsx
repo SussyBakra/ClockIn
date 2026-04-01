@@ -116,13 +116,11 @@ export default function LogTimeScreen() {
         <View style={styles.formCard}>
           <DatePicker label="Date" value={date} onChange={setDate} />
 
-          <View style={styles.timeRow}>
-            <View style={styles.timeCol}>
-              <TimePicker label="Start Time" value={startTime} onChange={setStartTime} />
-            </View>
-            <View style={styles.timeCol}>
-              <TimePicker label="End Time" value={endTime} onChange={setEndTime} />
-            </View>
+          <View style={styles.timeBlock}>
+            <TimePicker label="Start Time" value={startTime} onChange={setStartTime} fullWidth />
+          </View>
+          <View style={styles.timeBlockEnd}>
+            <TimePicker label="End Time" value={endTime} onChange={setEndTime} fullWidth />
           </View>
 
           <View style={styles.taskSection}>
@@ -282,12 +280,12 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
   },
-  timeRow: {
-    flexDirection: 'row',
-    gap: 12,
+  timeBlock: {
+    width: '100%',
+    marginBottom: 16,
   },
-  timeCol: {
-    flex: 1,
+  timeBlockEnd: {
+    width: '100%',
   },
   taskSection: {
     marginTop: 8,
@@ -370,6 +368,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   hmRow: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -377,7 +376,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: 8,
-    width: 52,
+    flex: 1,
+    minWidth: 0,
     height: 40,
     textAlign: 'center',
     fontFamily: Fonts.bold,
@@ -389,14 +389,14 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: 12,
     color: Colors.statLabel,
-    marginLeft: 4,
-    marginRight: 4,
+    paddingHorizontal: 6,
+    minWidth: 36,
   },
   hmSep: {
     fontFamily: Fonts.bold,
     fontSize: 16,
     color: Colors.normalTitle,
-    marginHorizontal: 6,
+    marginHorizontal: 4,
   },
   calcTimeDisplay: {
     borderWidth: 1,

@@ -7,7 +7,7 @@ import React, {
   useRef,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getDateKey } from '../utils/dateUtils';
+import { useHistoryStore } from './useHistoryStore';
 
 const STORAGE_KEY = '@clockin_shift';
 
@@ -50,6 +50,7 @@ interface ShiftStore extends ShiftData {
 const ShiftContext = createContext<ShiftStore | null>(null);
 
 export function ShiftProvider({ children }: { children: React.ReactNode }) {
+  const historyStore = useHistoryStore();
   const [data, setData] = useState<ShiftData>(DEFAULT_SHIFT);
   const [isLoading, setIsLoading] = useState(true);
   const dataRef = useRef(data);
@@ -110,38 +111,9 @@ export function ShiftProvider({ children }: { children: React.ReactNode }) {
     });
 
     if (d.clockInTime) {
-      try {
-        const HISTORY_KEY = '@clockin_history';
-        const stored = await AsyncStorage.getItem(HISTORY_KEY);
-        const history = stored ? JSON.parse(stored) : {};
-        const dateKey = getDateKey(d.clockInTime);
-        const existing = history[dateKey] || { date: dateKey, shifts: [], manualLogs: [] };
-        if (!existing.shifts) {
-          const legacyShifts = [];
-          if (existing.clockInTime && existing.clockOutTime) {
-            legacyShifts.push({
-              clockInTime: existing.clockInTime,
-              clockOutTime: existing.clockOutTime,
-              breaks: existing.breaks || [],
-            });
-          }
-          existing.shifts = legacyShifts;
-          delete existing.clockInTime;
-          delete existing.clockOutTime;
-          delete existing.breaks;
-        }
-        existing.shifts.push({
-          clockInTime: d.clockInTime,
-          clockOutTime,
-          breaks,
-        });
-        history[dateKey] = existing;
-        await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-      } catch {
-        // archive failed silently
-      }
+      await historyStore.archiveShift(d.clockInTime, clockOutTime, breaks);
     }
-  }, [persist]);
+  }, [persist, historyStore]);
 
   const startBreak = useCallback(async () => {
     const d = dataRef.current;

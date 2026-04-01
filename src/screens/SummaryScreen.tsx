@@ -30,16 +30,26 @@ export default function SummaryScreen() {
   const [records, setRecords] = useState<DayRecord[]>([]);
   const [weeklyTotalMs, setWeeklyTotalMs] = useState(0);
 
-  const refreshData = useCallback(() => {
+  const applyWeekFromStore = useCallback(() => {
     const days = getWeekRange();
     setWeekDays(days);
-
-    const recs = historyStore.getWeekRecords();
-    setRecords(recs);
+    setRecords(historyStore.getWeekRecords());
     setWeeklyTotalMs(historyStore.getWeeklyTotalMs());
   }, [historyStore]);
 
-  useFocusEffect(refreshData);
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      (async () => {
+        await historyStore.refresh();
+        if (!active) return;
+        applyWeekFromStore();
+      })();
+      return () => {
+        active = false;
+      };
+    }, [historyStore, applyWeekFromStore]),
+  );
 
   const weeklyGoalMs = 40 * 3600000;
   const progress = Math.min(1, weeklyTotalMs / weeklyGoalMs);
@@ -47,6 +57,7 @@ export default function SummaryScreen() {
   const getDayWorkedMs = (record: DayRecord): number => {
     let total = 0;
     for (const shift of record.shifts) {
+      if (shift.clockOutTime == null) continue;
       let shiftMs = shift.clockOutTime - shift.clockInTime;
       const absentMs = shift.breaks
         .filter((b) => b.exceeded)
@@ -66,27 +77,36 @@ export default function SummaryScreen() {
     return total;
   };
 
-  const openDayDetail = (record: DayRecord) => {
-    const todayKey = getTodayKey();
-    if (record.date === todayKey && shiftStore.clockInTime) {
-      const merged: DayRecord = { ...record, shifts: [...record.shifts], manualLogs: [...record.manualLogs] };
-      if (shiftStore.isClockedIn || shiftStore.clockOutTime) {
+  const mergeLiveShift = useCallback(
+    (base: DayRecord): DayRecord => {
+      const todayKey = getTodayKey();
+      if (base.date !== todayKey || !shiftStore.clockInTime) {
+        return { ...base, shifts: [...base.shifts], manualLogs: [...base.manualLogs] };
+      }
+      const merged: DayRecord = { ...base, shifts: [...base.shifts], manualLogs: [...base.manualLogs] };
+      if (shiftStore.isClockedIn) {
         const liveShift: ShiftSession = {
           clockInTime: shiftStore.clockInTime,
-          clockOutTime: shiftStore.clockOutTime || Date.now(),
+          clockOutTime: null,
           breaks: [...shiftStore.breaks],
         };
-        const alreadyArchived = merged.shifts.some(
-          (s) => s.clockInTime === liveShift.clockInTime
-        );
+        const alreadyArchived = merged.shifts.some((s) => s.clockInTime === liveShift.clockInTime);
         if (!alreadyArchived) {
           merged.shifts = [...merged.shifts, liveShift];
         }
       }
-      setSelectedDay(merged);
-    } else {
-      setSelectedDay({ ...record, shifts: [...record.shifts], manualLogs: [...record.manualLogs] });
-    }
+      return merged;
+    },
+    [shiftStore.clockInTime, shiftStore.isClockedIn, shiftStore.breaks],
+  );
+
+  const openDayDetail = (record: DayRecord) => {
+    void (async () => {
+      await historyStore.refresh();
+      applyWeekFromStore();
+      const fresh = historyStore.getDayRecord(record.date);
+      setSelectedDay(mergeLiveShift(fresh));
+    })();
   };
 
   const handleDeleteManualLog = (dateKey: string, logId: string) => {
@@ -100,7 +120,8 @@ export default function SummaryScreen() {
           style: 'destructive',
           onPress: async () => {
             await historyStore.deleteManualLog(dateKey, logId);
-            refreshData();
+            await historyStore.refresh();
+            applyWeekFromStore();
             const updated = historyStore.getDayRecord(dateKey);
             if (updated.shifts.length > 0 || updated.manualLogs.length > 0) {
               setSelectedDay({ ...updated });
@@ -112,20 +133,6 @@ export default function SummaryScreen() {
       ],
     );
   };
-
-  const buildAllShiftRows = (shifts: ShiftSession[]) => {
-    const allRows: ReturnType<typeof buildActivityRows> = [];
-    shifts.forEach((shift, shiftIdx) => {
-      const rows = buildActivityRows(shift.clockInTime, shift.clockOutTime, shift.breaks);
-      if (shiftIdx > 0 && allRows.length > 0) {
-        allRows[allRows.length - 1] = { ...allRows[allRows.length - 1] };
-      }
-      allRows.push(...rows);
-    });
-    return allRows;
-  };
-
-  const selectedRows = selectedDay ? buildAllShiftRows(selectedDay.shifts) : [];
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -192,6 +199,16 @@ export default function SummaryScreen() {
         transparent
         animationType="fade"
         onRequestClose={() => setSelectedDay(null)}
+        onShow={() => {
+          const day = selectedDay;
+          if (!day) return;
+          void (async () => {
+            await historyStore.refresh();
+            applyWeekFromStore();
+            const fresh = historyStore.getDayRecord(day.date);
+            setSelectedDay(mergeLiveShift(fresh));
+          })();
+        }}
       >
         <Pressable style={styles.modalOverlay} onPress={() => setSelectedDay(null)}>
           <Pressable style={styles.modalCard} onPress={() => {}}>
@@ -210,20 +227,31 @@ export default function SummaryScreen() {
             </View>
 
             <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
-              {selectedRows.length > 0 ? (
-                <View style={styles.activityCard}>
-                  {selectedRows.map((row, idx) => (
-                    <ActivityRow
-                      key={`${row.type}-${row.startTime}-${idx}`}
-                      type={row.type}
-                      label={row.label}
-                      startTime={row.startTime}
-                      endTime={row.endTime}
-                      duration={row.duration}
-                      isLast={idx === selectedRows.length - 1 && (!selectedDay || selectedDay.manualLogs.length === 0)}
-                    />
-                  ))}
-                </View>
+              {selectedDay && selectedDay.shifts.length > 0 ? (
+                selectedDay.shifts.map((shift, sIdx) => {
+                  const rows = buildActivityRows(shift.clockInTime, shift.clockOutTime, shift.breaks);
+                  const isLastSession = sIdx === selectedDay.shifts.length - 1;
+                  return (
+                    <View
+                      key={`session-${shift.clockInTime}-${sIdx}`}
+                      style={isLastSession ? undefined : styles.sessionBlockSpacing}
+                    >
+                      <View style={styles.activityCard}>
+                        {rows.map((row, idx) => (
+                          <ActivityRow
+                            key={`${row.type}-${row.startTime}-${sIdx}-${idx}`}
+                            type={row.type}
+                            label={row.label}
+                            startTime={row.startTime}
+                            endTime={row.endTime}
+                            duration={row.duration}
+                            isLast={idx === rows.length - 1}
+                          />
+                        ))}
+                      </View>
+                    </View>
+                  );
+                })
               ) : (
                 <View style={styles.modalEmpty}>
                   <Text style={styles.modalEmptyText}>No shift recorded for this day.</Text>
@@ -463,6 +491,9 @@ const styles = StyleSheet.create({
   },
   modalScroll: {
     flexGrow: 0,
+  },
+  sessionBlockSpacing: {
+    marginBottom: 24,
   },
   activityCard: {
     backgroundColor: Colors.white,
