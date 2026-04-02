@@ -62,6 +62,7 @@ export default function ActivityList({
         onSaveBreak={(idx, start, end) => store.updateBreak(idx, start, end)}
         onDeleteBreak={(idx) => store.deleteBreak(idx)}
         onDeleteClockIn={() => store.resetShift()}
+        onDeleteClockOut={() => store.clearClockOut()}
       />
     </View>
   );

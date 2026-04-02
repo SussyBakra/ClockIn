@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -6,7 +6,9 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Colors } from '../constants/colors';
 import { Fonts, FontSizes } from '../constants/typography';
 import { formatDate, formatTimer } from '../utils/timeUtils';
+import { formatHoursMinutesSpelled } from '../utils/dateUtils';
 import { useShiftStore } from '../hooks/useShiftStore';
+import { useHistoryStore } from '../hooks/useHistoryStore';
 import { useTimer } from '../hooks/useTimer';
 import BreakTimerCard from '../components/BreakTimerCard';
 import ActivityList from '../components/ActivityList';
@@ -17,11 +19,20 @@ import type { RootStackParamList } from '../types/navigation';
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Main'>;
 
 const BREAK_LIMIT = 600000;
+const TICK_MS = 60000;
 
 export default function HomeScreen() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const store = useShiftStore();
+  const historyStore = useHistoryStore();
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), TICK_MS);
+    return () => clearInterval(id);
+  }, []);
+
   const elapsed = useTimer(store.currentBreak?.startTime ?? null);
 
   const timerState: 'working' | 'break' | 'exceeded' = !store.currentBreak
@@ -44,6 +55,13 @@ export default function HomeScreen() {
       store.endBreak();
     }
   };
+
+  const archivedTodayMs = historyStore.getTodayWorkedMs();
+  const liveMs =
+    store.isClockedIn && store.clockInTime
+      ? Date.now() - store.clockInTime
+      : 0;
+  const workedTodayMs = archivedTodayMs + liveMs;
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -85,6 +103,15 @@ export default function HomeScreen() {
         >
           <Text style={styles.clockOutText}>Clock Out</Text>
         </Pressable>
+
+        <View style={styles.workedCard}>
+          <Text style={styles.workedTitle}>Hours Already Worked Today</Text>
+          <View style={styles.durationBadge}>
+            <Text style={styles.durationBadgeText}>
+              {formatHoursMinutesSpelled(workedTodayMs)}
+            </Text>
+          </View>
+        </View>
 
         <View style={styles.statsSection}>
           <StatCards
@@ -151,6 +178,34 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: FontSizes.lg,
     color: Colors.primaryButtonText,
+  },
+  workedCard: {
+    marginTop: 20,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    padding: 16,
+  },
+  workedTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: FontSizes.md,
+    color: Colors.normalTitle,
+    marginBottom: 12,
+  },
+  durationBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.durationBadgeBg,
+    borderWidth: 1,
+    borderColor: Colors.durationBadgeBorder,
+    borderRadius: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  durationBadgeText: {
+    fontFamily: Fonts.bold,
+    fontSize: FontSizes.sm,
+    color: Colors.durationBadgeText,
   },
   statsSection: {
     marginTop: 40,

@@ -25,6 +25,7 @@ interface Props {
   onSaveBreak: (index: number, startTime: number, endTime: number) => void;
   onDeleteBreak: (index: number) => void;
   onDeleteClockIn: () => void | Promise<void>;
+  onDeleteClockOut: () => void | Promise<void>;
 }
 
 export default function EditActivityModal({
@@ -36,6 +37,7 @@ export default function EditActivityModal({
   onSaveBreak,
   onDeleteBreak,
   onDeleteClockIn,
+  onDeleteClockOut,
 }: Props) {
   if (!row) return null;
 
@@ -57,6 +59,7 @@ export default function EditActivityModal({
             onSaveBreak={onSaveBreak}
             onDeleteBreak={onDeleteBreak}
             onDeleteClockIn={onDeleteClockIn}
+            onDeleteClockOut={onDeleteClockOut}
           />
         </Pressable>
       </Pressable>
@@ -72,6 +75,7 @@ function ModalContent({
   onSaveBreak,
   onDeleteBreak,
   onDeleteClockIn,
+  onDeleteClockOut,
 }: Omit<Props, 'visible'> & { row: EditRowData }) {
   const [startTime, setStartTime] = useState(row.startTime);
   const [endTime, setEndTime] = useState(row.endTime ?? row.startTime);
@@ -90,7 +94,11 @@ function ModalContent({
           ? `Edit ${row.label}`
           : 'Edit Absent Entry';
 
-  const canDelete = row.type === 'clockIn' || row.type === 'break' || row.type === 'absent';
+  const canDelete =
+    row.type === 'clockIn'
+    || row.type === 'clockOut'
+    || row.type === 'break'
+    || row.type === 'absent';
   const hasRange = row.type === 'break' || row.type === 'absent';
 
   const handleSave = () => {
@@ -126,6 +134,11 @@ function ModalContent({
       return;
     }
 
+    if (row.type === 'clockOut') {
+      confirmDeleteLog(() => onDeleteClockOut());
+      return;
+    }
+
     if (row.breakIndex == null) return;
 
     if (row.type === 'absent') {
@@ -142,20 +155,24 @@ function ModalContent({
       <Text style={styles.title}>{title}</Text>
 
       <View style={styles.formCard}>
-        <TimePicker
-          label={hasRange ? 'Start Time' : 'Time'}
-          value={startTime}
-          onChange={setStartTime}
-          fullWidth
-        />
-
-        {hasRange && (
+        <View style={hasRange ? styles.timePickerBlock : undefined}>
           <TimePicker
-            label="End Time"
-            value={endTime}
-            onChange={setEndTime}
+            label={hasRange ? 'Start Time' : 'Time'}
+            value={startTime}
+            onChange={setStartTime}
             fullWidth
           />
+        </View>
+
+        {hasRange && (
+          <View style={styles.endTimeBlock}>
+            <TimePicker
+              label="End Time"
+              value={endTime}
+              onChange={setEndTime}
+              fullWidth
+            />
+          </View>
         )}
       </View>
 
@@ -206,6 +223,10 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
   },
+  timePickerBlock: {
+    marginBottom: 16,
+  },
+  endTimeBlock: {},
   actionsColumn: {
     width: '100%',
   },

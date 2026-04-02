@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -8,7 +8,8 @@ import { Fonts, FontSizes } from '../constants/typography';
 import { useHistoryStore, ManualLog } from '../hooks/useHistoryStore';
 import { useShiftStore } from '../hooks/useShiftStore';
 import { getTodayKey, formatHoursMinutes } from '../utils/dateUtils';
-import { formatTimeOfDay } from '../utils/timeUtils';
+import { formatTimeOfDay, formatTimeOfDayWithNextDay } from '../utils/timeUtils';
+import { calculateSessionDuration, calculateDifference } from '../utils/timeMath';
 import DatePicker from '../components/DatePicker';
 import TimePicker from '../components/TimePicker';
 
@@ -19,6 +20,11 @@ function parseHM(h: string, m: string): number {
 function msToHM(ms: number): { h: string; m: string } {
   const totalMin = Math.floor(ms / 60000);
   return { h: String(Math.floor(totalMin / 60)), m: String(totalMin % 60) };
+}
+
+function parseBreakMinutes(s: string): number {
+  const n = parseInt(s, 10);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
 export default function LogTimeScreen() {
@@ -41,6 +47,10 @@ export default function LogTimeScreen() {
   const [targetM, setTargetM] = useState('0');
   const [workedH, setWorkedH] = useState('');
   const [workedM, setWorkedM] = useState('');
+  const [breakMinutesStr, setBreakMinutesStr] = useState('0');
+  const [plannedStartTime, setPlannedStartTime] = useState(() => Date.now());
+  const [plannedDeparture, setPlannedDeparture] = useState(() => Date.now());
+  const [departureDirty, setDepartureDirty] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
 
   useEffect(() => {
@@ -48,11 +58,11 @@ export default function LogTimeScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  const todayWorkedMs = historyStore.getTodayWorkedMs();
-  const liveWorkedMs = shiftStore.clockInTime && !shiftStore.clockOutTime
-    ? Date.now() - shiftStore.clockInTime
-    : 0;
-  const totalTodayMs = todayWorkedMs + liveWorkedMs;
+  const contextDayKey = getTodayKey();
+  const todayWorkedArchivedMs = historyStore.getTodayWorkedMs();
+  const liveWorkedMs =
+    shiftStore.clockInTime && shiftStore.isClockedIn ? currentTime - shiftStore.clockInTime : 0;
+  const totalTodayMs = todayWorkedArchivedMs + liveWorkedMs;
 
   const hasWorkedOverride = workedH !== '' || workedM !== '';
   const workedMs = hasWorkedOverride
@@ -60,10 +70,74 @@ export default function LogTimeScreen() {
     : totalTodayMs;
 
   const targetMs = parseHM(targetH || '8', targetM || '0');
-  const remainingMs = Math.max(0, targetMs - workedMs);
-  const departureTime = currentTime + remainingMs;
-
+  const breakMs = parseBreakMinutes(breakMinutesStr) * 60000;
   const autoWorked = msToHM(totalTodayMs);
+
+  const remainingPaidMs = Math.max(0, targetMs - workedMs);
+
+  const suggestedDeparture = useMemo(() => {
+    if (shiftStore.isClockedIn && shiftStore.clockInTime) {
+      return currentTime + remainingPaidMs + breakMs;
+    }
+    return plannedStartTime + targetMs + breakMs;
+  }, [
+    shiftStore.isClockedIn,
+    shiftStore.clockInTime,
+    currentTime,
+    remainingPaidMs,
+    breakMs,
+    plannedStartTime,
+    targetMs,
+  ]);
+
+  useEffect(() => {
+    if (!departureDirty) {
+      setPlannedDeparture(suggestedDeparture);
+    }
+  }, [suggestedDeparture, departureDirty]);
+
+  useEffect(() => {
+    setDepartureDirty(false);
+  }, [shiftStore.isClockedIn]);
+
+  const idealClockOutMs = useMemo(() => {
+    if (shiftStore.isClockedIn && shiftStore.clockInTime) {
+      return currentTime + remainingPaidMs + breakMs;
+    }
+    return plannedStartTime + targetMs + breakMs;
+  }, [
+    shiftStore.isClockedIn,
+    shiftStore.clockInTime,
+    currentTime,
+    remainingPaidMs,
+    breakMs,
+    plannedStartTime,
+    targetMs,
+  ]);
+
+  const projectedPaidTodayMs = useMemo(() => {
+    if (shiftStore.isClockedIn && shiftStore.clockInTime) {
+      const segmentGross = calculateSessionDuration(shiftStore.clockInTime, plannedDeparture);
+      const segmentNet = Math.max(0, segmentGross - breakMs);
+      return todayWorkedArchivedMs + segmentNet;
+    }
+    const gross = calculateSessionDuration(plannedStartTime, plannedDeparture);
+    return Math.max(0, gross - breakMs);
+  }, [
+    shiftStore.isClockedIn,
+    shiftStore.clockInTime,
+    plannedDeparture,
+    plannedStartTime,
+    breakMs,
+    todayWorkedArchivedMs,
+  ]);
+
+  const vsTargetDiff = calculateDifference(projectedPaidTodayMs, targetMs);
+
+  const onPlannedDepartureChange = useCallback((t: number) => {
+    setPlannedDeparture(t);
+    setDepartureDirty(true);
+  }, []);
 
   const clearForm = () => {
     const s = new Date();
@@ -94,6 +168,8 @@ export default function LogTimeScreen() {
     Alert.alert('Saved', `Logged ${formatHoursMinutes(duration)} for ${log.task}.`);
     clearForm();
   };
+
+  const breakMinLabel = parseBreakMinutes(breakMinutesStr);
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -175,32 +251,58 @@ export default function LogTimeScreen() {
             <Text style={styles.hmUnit}>mins</Text>
           </View>
 
-          <Text style={styles.calcLabel}>Hours Already Worked</Text>
-          <View style={styles.hmRow}>
-            <TextInput
-              style={styles.hmInput}
-              value={hasWorkedOverride ? workedH : autoWorked.h}
-              onChangeText={setWorkedH}
-              keyboardType="number-pad"
-              maxLength={2}
-              placeholder={autoWorked.h}
-              placeholderTextColor={Colors.timeRange}
-              selectTextOnFocus
-            />
-            <Text style={styles.hmUnit}>hrs</Text>
-            <Text style={styles.hmSep}>:</Text>
-            <TextInput
-              style={styles.hmInput}
-              value={hasWorkedOverride ? workedM : autoWorked.m}
-              onChangeText={setWorkedM}
-              keyboardType="number-pad"
-              maxLength={2}
-              placeholder={autoWorked.m}
-              placeholderTextColor={Colors.timeRange}
-              selectTextOnFocus
-            />
-            <Text style={styles.hmUnit}>mins</Text>
-          </View>
+          <Text style={styles.calcLabel}>Planned Unpaid Breaks (minutes)</Text>
+          <TextInput
+            style={styles.breakInput}
+            value={breakMinutesStr}
+            onChangeText={setBreakMinutesStr}
+            keyboardType="number-pad"
+            placeholder="0"
+            placeholderTextColor={Colors.timeRange}
+          />
+
+          {shiftStore.isClockedIn && shiftStore.clockInTime ? (
+            <>
+              <Text style={styles.calcLabel}>Hours Already Worked</Text>
+              <View style={styles.hmRow}>
+                <TextInput
+                  style={styles.hmInput}
+                  value={hasWorkedOverride ? workedH : autoWorked.h}
+                  onChangeText={setWorkedH}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  placeholder={autoWorked.h}
+                  placeholderTextColor={Colors.timeRange}
+                  selectTextOnFocus
+                />
+                <Text style={styles.hmUnit}>hrs</Text>
+                <Text style={styles.hmSep}>:</Text>
+                <TextInput
+                  style={styles.hmInput}
+                  value={hasWorkedOverride ? workedM : autoWorked.m}
+                  onChangeText={setWorkedM}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  placeholder={autoWorked.m}
+                  placeholderTextColor={Colors.timeRange}
+                  selectTextOnFocus
+                />
+                <Text style={styles.hmUnit}>mins</Text>
+              </View>
+            </>
+          ) : (
+            <View style={styles.timeBlock}>
+              <TimePicker
+                label="Planned Start Time"
+                value={plannedStartTime}
+                onChange={setPlannedStartTime}
+                fullWidth
+              />
+            </View>
+          )}
+
+          <Text style={styles.calcLabel}>Planned Departure</Text>
+          <TimePicker label="" value={plannedDeparture} onChange={onPlannedDepartureChange} fullWidth />
 
           <Text style={styles.calcLabel}>Current Time</Text>
           <View style={styles.calcTimeDisplay}>
@@ -209,21 +311,35 @@ export default function LogTimeScreen() {
 
           <View style={styles.calcDivider} />
 
-          <View style={styles.resultRow}>
+          <View style={styles.resultBlock}>
             <Text style={styles.resultLabel}>
-              To complete {formatHoursMinutes(targetMs)}, clock out at:
+              To hit {formatHoursMinutes(targetMs)} (including a {breakMinLabel} min break), clock out
+              at:
             </Text>
-            <Text style={styles.resultValue}>{formatTimeOfDay(departureTime)}</Text>
+            <Text style={styles.resultValue}>
+              {formatTimeOfDayWithNextDay(idealClockOutMs, contextDayKey)}
+            </Text>
           </View>
 
-          <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Remaining time needed:</Text>
-            <Text style={styles.resultValue}>{formatHoursMinutes(remainingMs)}</Text>
+          <View style={styles.resultBlock}>
+            <Text style={styles.resultLabel}>
+              If you leave at {formatTimeOfDay(plannedDeparture)}, your total paid time today will be:
+            </Text>
+            <Text style={styles.resultValue}>{formatHoursMinutes(projectedPaidTodayMs)}</Text>
           </View>
 
-          <View style={[styles.resultRow, { borderBottomWidth: 0 }]}>
-            <Text style={styles.resultLabel}>If you leave now, today&apos;s total:</Text>
-            <Text style={styles.resultValue}>{formatHoursMinutes(workedMs)}</Text>
+          <View style={[styles.resultBlock, { borderBottomWidth: 0 }]}>
+            {vsTargetDiff === 0 ? (
+              <Text style={styles.resultNeutral}>Exactly on target for today.</Text>
+            ) : vsTargetDiff > 0 ? (
+              <Text style={styles.resultOvertime}>
+                {formatHoursMinutes(vsTargetDiff)} overtime vs target
+              </Text>
+            ) : (
+              <Text style={styles.resultShortfall}>
+                {formatHoursMinutes(Math.abs(vsTargetDiff))} short of target
+              </Text>
+            )}
           </View>
         </View>
       </ScrollView>
@@ -398,6 +514,17 @@ const styles = StyleSheet.create({
     color: Colors.normalTitle,
     marginHorizontal: 4,
   },
+  breakInput: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    height: 40,
+    paddingHorizontal: 12,
+    fontFamily: Fonts.bold,
+    fontSize: 14,
+    color: Colors.normalTitle,
+    backgroundColor: Colors.white,
+  },
   calcTimeDisplay: {
     borderWidth: 1,
     borderColor: Colors.border,
@@ -417,11 +544,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.divider,
     marginVertical: 16,
   },
-  resultRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
+  resultBlock: {
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: Colors.divider,
   },
@@ -429,12 +553,26 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: 12,
     color: Colors.statValue,
-    flex: 1,
-    marginRight: 8,
+    marginBottom: 6,
   },
   resultValue: {
     fontFamily: Fonts.bold,
-    fontSize: 13,
+    fontSize: 15,
     color: Colors.normalTitle,
+  },
+  resultNeutral: {
+    fontFamily: Fonts.bold,
+    fontSize: 13,
+    color: Colors.statValue,
+  },
+  resultOvertime: {
+    fontFamily: Fonts.bold,
+    fontSize: 13,
+    color: Colors.workingDot,
+  },
+  resultShortfall: {
+    fontFamily: Fonts.bold,
+    fontSize: 13,
+    color: Colors.exceededBadgeText,
   },
 });

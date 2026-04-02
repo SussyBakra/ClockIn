@@ -31,7 +31,7 @@ export default function LaunchScreen() {
     <View style={styles.screen}>
       <BrutalistTextMassBackground />
 
-      <View style={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
+      <View style={[styles.content, { paddingBottom: insets.bottom + 24, zIndex: 1 }]}>
         <View style={styles.buttonContainer}>
           <Pressable
             style={[styles.clockInBtn, isClockedIn && { opacity: 0.4 }]}

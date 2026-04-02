@@ -1,3 +1,5 @@
+import { getDateKey } from './dateUtils';
+
 export function formatTimer(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
   const minutes = Math.floor(totalSeconds / 60);
@@ -32,4 +34,13 @@ export function formatDate(timestamp: number): string {
 
 export function addHoursMs(timestamp: number, hours: number): number {
   return timestamp + hours * 60 * 60 * 1000;
+}
+
+/** Appends " (Next Day)" when the instant falls on a different calendar day than `contextDayKey` (YYYY-MM-DD). */
+export function formatTimeOfDayWithNextDay(timestamp: number, contextDayKey: string): string {
+  const base = formatTimeOfDay(timestamp);
+  if (getDateKey(timestamp) !== contextDayKey) {
+    return `${base} (Next Day)`;
+  }
+  return base;
 }

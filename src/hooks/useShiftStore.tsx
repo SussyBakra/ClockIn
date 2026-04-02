@@ -41,6 +41,7 @@ interface ShiftStore extends ShiftData {
   startBreak: () => Promise<void>;
   endBreak: () => Promise<void>;
   resetShift: () => Promise<void>;
+  clearClockOut: () => Promise<void>;
   updateClockInTime: (time: number) => Promise<void>;
   updateClockOutTime: (time: number) => Promise<void>;
   updateBreak: (index: number, startTime: number, endTime: number) => Promise<void>;
@@ -142,6 +143,16 @@ export function ShiftProvider({ children }: { children: React.ReactNode }) {
     await persist(DEFAULT_SHIFT);
   }, [persist]);
 
+  const clearClockOut = useCallback(async () => {
+    const d = dataRef.current;
+    if (!d.clockInTime) return;
+    await persist({
+      ...d,
+      clockOutTime: null,
+      isClockedIn: true,
+    });
+  }, [persist]);
+
   const updateClockInTime = useCallback(async (time: number) => {
     const d = dataRef.current;
     await persist({ ...d, clockInTime: time });
@@ -176,6 +187,7 @@ export function ShiftProvider({ children }: { children: React.ReactNode }) {
         startBreak,
         endBreak,
         resetShift,
+        clearClockOut,
         updateClockInTime,
         updateClockOutTime,
         updateBreak,

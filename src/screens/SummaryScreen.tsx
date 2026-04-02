@@ -1,11 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, Pressable, ScrollView, Modal, Alert, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
 import { Fonts, FontSizes } from '../constants/typography';
-import { useHistoryStore, DayRecord, ShiftSession } from '../hooks/useHistoryStore';
+import { useHistoryStore, DayRecord, ShiftSession, DayTag } from '../hooks/useHistoryStore';
 import { useShiftStore } from '../hooks/useShiftStore';
 import {
   getWeekRange,
@@ -16,9 +16,34 @@ import {
   formatHoursMinutes,
   getTodayKey,
 } from '../utils/dateUtils';
+import { calculateExpectedWeeklyTime, calculateDifference } from '../utils/timeMath';
 import { buildActivityRows } from '../utils/buildActivityRows';
 import { formatTimeOfDay } from '../utils/timeUtils';
 import ActivityRow from '../components/ActivityRow';
+
+const DEFAULT_DAILY_TARGET_HRS = 8;
+
+const DELETE_LOG_TITLE = 'Delete Log';
+const DELETE_LOG_MESSAGE = 'Are you sure you want to delete this log?';
+
+function dayTagLabel(tag: DayTag): string | null {
+  if (tag === 'leave') return 'Leave';
+  if (tag === 'holiday') return 'Holiday';
+  if (tag === 'absent') return 'Absent';
+  return null;
+}
+
+function countWeekDayTags(records: DayRecord[]) {
+  let leave = 0;
+  let holiday = 0;
+  let absent = 0;
+  for (const r of records) {
+    if (r.dayTag === 'leave') leave += 1;
+    else if (r.dayTag === 'holiday') holiday += 1;
+    else if (r.dayTag === 'absent') absent += 1;
+  }
+  return { leave, holiday, absent };
+}
 
 export default function SummaryScreen() {
   const insets = useSafeAreaInsets();
@@ -51,8 +76,15 @@ export default function SummaryScreen() {
     }, [historyStore, applyWeekFromStore]),
   );
 
-  const weeklyGoalMs = 40 * 3600000;
-  const progress = Math.min(1, weeklyTotalMs / weeklyGoalMs);
+  const { leave, holiday, absent } = useMemo(() => countWeekDayTags(records), [records]);
+  const expectedWeeklyMs = calculateExpectedWeeklyTime(
+    DEFAULT_DAILY_TARGET_HRS,
+    leave,
+    holiday,
+    absent,
+  );
+  const progress = expectedWeeklyMs <= 0 ? 0 : Math.min(1, weeklyTotalMs / expectedWeeklyMs);
+  const weeklyDiffMs = calculateDifference(weeklyTotalMs, expectedWeeklyMs);
 
   const getDayWorkedMs = (record: DayRecord): number => {
     let total = 0;
@@ -81,9 +113,19 @@ export default function SummaryScreen() {
     (base: DayRecord): DayRecord => {
       const todayKey = getTodayKey();
       if (base.date !== todayKey || !shiftStore.clockInTime) {
-        return { ...base, shifts: [...base.shifts], manualLogs: [...base.manualLogs] };
+        return {
+          ...base,
+          shifts: [...base.shifts],
+          manualLogs: [...base.manualLogs],
+          dayTag: base.dayTag,
+        };
       }
-      const merged: DayRecord = { ...base, shifts: [...base.shifts], manualLogs: [...base.manualLogs] };
+      const merged: DayRecord = {
+        ...base,
+        shifts: [...base.shifts],
+        manualLogs: [...base.manualLogs],
+        dayTag: base.dayTag,
+      };
       if (shiftStore.isClockedIn) {
         const liveShift: ShiftSession = {
           clockInTime: shiftStore.clockInTime,
@@ -110,28 +152,57 @@ export default function SummaryScreen() {
   };
 
   const handleDeleteManualLog = (dateKey: string, logId: string) => {
-    Alert.alert(
-      'Delete Log',
-      'Are you sure you want to delete this log?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            await historyStore.deleteManualLog(dateKey, logId);
-            await historyStore.refresh();
-            applyWeekFromStore();
-            const updated = historyStore.getDayRecord(dateKey);
-            if (updated.shifts.length > 0 || updated.manualLogs.length > 0) {
-              setSelectedDay({ ...updated });
-            } else {
-              setSelectedDay(null);
-            }
-          },
+    Alert.alert(DELETE_LOG_TITLE, DELETE_LOG_MESSAGE, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          await historyStore.deleteManualLog(dateKey, logId);
+          await historyStore.refresh();
+          applyWeekFromStore();
+          const updated = historyStore.getDayRecord(dateKey);
+          if (updated.shifts.length > 0 || updated.manualLogs.length > 0) {
+            setSelectedDay(mergeLiveShift(updated));
+          } else {
+            setSelectedDay(null);
+          }
         },
-      ],
-    );
+      },
+    ]);
+  };
+
+  const handleDeleteSession = (dateKey: string, clockInTime: number) => {
+    Alert.alert(DELETE_LOG_TITLE, DELETE_LOG_MESSAGE, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          await historyStore.deleteShiftSession(dateKey, clockInTime);
+          await historyStore.refresh();
+          applyWeekFromStore();
+          const updated = historyStore.getDayRecord(dateKey);
+          const merged = mergeLiveShift(updated);
+          if (merged.shifts.length === 0 && merged.manualLogs.length === 0) {
+            setSelectedDay(null);
+          } else {
+            setSelectedDay(merged);
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleDayTagChip = (tag: DayTag) => {
+    if (!selectedDay) return;
+    const dk = selectedDay.date;
+    void (async () => {
+      await historyStore.setDayTag(dk, tag);
+      await historyStore.refresh();
+      applyWeekFromStore();
+      setSelectedDay(mergeLiveShift(historyStore.getDayRecord(dk)));
+    })();
   };
 
   return (
@@ -151,11 +222,27 @@ export default function SummaryScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
       >
+        <View style={styles.diffCard}>
+          <Text style={styles.diffLabel}>WEEKLY DIFFERENCE</Text>
+          {weeklyDiffMs >= 0 ? (
+            <Text style={styles.diffOvertime}>
+              +{formatHoursMinutes(weeklyDiffMs)} overtime
+            </Text>
+          ) : (
+            <Text style={styles.diffShortfall}>
+              {formatHoursMinutes(Math.abs(weeklyDiffMs))} short of goal
+            </Text>
+          )}
+        </View>
+
         <View style={styles.goalCard}>
-          <Text style={styles.goalLabel}>WEEKLY GOAL</Text>
+          <Text style={styles.goalLabel}>WEEKLY GOAL (HR EXPECTED)</Text>
           <View style={styles.goalValueRow}>
             <Text style={styles.goalValue}>{formatHoursMinutes(weeklyTotalMs)}</Text>
-            <Text style={styles.goalSecondary}> / 40h</Text>
+            <Text style={styles.goalSecondary}>
+              {' '}
+              / {formatHoursMinutes(expectedWeeklyMs)}
+            </Text>
           </View>
           <View style={styles.progressTrack}>
             <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
@@ -170,12 +257,13 @@ export default function SummaryScreen() {
           const today = isToday(dk);
           const workedMs = getDayWorkedMs(record);
           const hasData = workedMs > 0;
+          const tagLabel = dayTagLabel(record.dayTag);
 
           return (
             <Pressable
               key={dk}
               style={[styles.dayRow, today && styles.dayRowToday]}
-              onPress={() => openDayDetail(record)}
+              onPress={() => openDayDetail({ ...record, date: dk })}
             >
               <View style={[styles.dayAvatar, today && styles.dayAvatarToday]}>
                 <Text style={[styles.dayAvatarText, today && styles.dayAvatarTextToday]}>
@@ -186,9 +274,17 @@ export default function SummaryScreen() {
                 <Text style={styles.dayName}>{getDayName(dk)}</Text>
                 <Text style={styles.dayDate}>{formatDateShort(dk)}</Text>
               </View>
-              <Text style={[styles.dayHours, !hasData && styles.dayNoData]}>
-                {hasData ? formatHoursMinutes(workedMs) : '-'}
-              </Text>
+              <View style={styles.dayRight}>
+                {tagLabel ? (
+                  <View style={styles.rowStatusBadge}>
+                    <Text style={styles.rowStatusBadgeText}>{tagLabel}</Text>
+                  </View>
+                ) : (
+                  <Text style={[styles.dayHours, !hasData && styles.dayNoData]}>
+                    {hasData ? formatHoursMinutes(workedMs) : '-'}
+                  </Text>
+                )}
+              </View>
             </Pressable>
           );
         })}
@@ -231,6 +327,7 @@ export default function SummaryScreen() {
                 selectedDay.shifts.map((shift, sIdx) => {
                   const rows = buildActivityRows(shift.clockInTime, shift.clockOutTime, shift.breaks);
                   const isLastSession = sIdx === selectedDay.shifts.length - 1;
+                  const canDeleteSession = shift.clockOutTime != null;
                   return (
                     <View
                       key={`session-${shift.clockInTime}-${sIdx}`}
@@ -249,6 +346,14 @@ export default function SummaryScreen() {
                           />
                         ))}
                       </View>
+                      {canDeleteSession && selectedDay && (
+                        <Pressable
+                          style={styles.deleteSessionBtn}
+                          onPress={() => handleDeleteSession(selectedDay.date, shift.clockInTime)}
+                        >
+                          <Text style={styles.deleteSessionBtnText}>Delete this log</Text>
+                        </Pressable>
+                      )}
                     </View>
                   );
                 })
@@ -291,6 +396,28 @@ export default function SummaryScreen() {
                         </View>
                       </View>
                     ))}
+                  </View>
+                </View>
+              )}
+
+              {selectedDay && (
+                <View style={styles.dayTagSection}>
+                  <View style={styles.dayTagContainer}>
+                    {(['leave', 'holiday', 'absent'] as const).map((tag) => {
+                      const active = selectedDay.dayTag === tag;
+                      const labels = { leave: 'Leave', holiday: 'Holiday', absent: 'Absent' };
+                      return (
+                        <Pressable
+                          key={tag}
+                          style={[styles.dayTagChip, active && styles.dayTagChipActive]}
+                          onPress={() => handleDayTagChip(tag)}
+                        >
+                          <Text style={[styles.dayTagChipText, active && styles.dayTagChipTextActive]}>
+                            {labels[tag]}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
                   </View>
                 </View>
               )}
@@ -343,6 +470,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
   },
+  diffCard: {
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    padding: 20,
+    marginBottom: 12,
+  },
+  diffLabel: {
+    fontFamily: Fonts.bold,
+    fontSize: FontSizes.sm,
+    color: Colors.statLabel,
+    marginBottom: 8,
+  },
+  diffOvertime: {
+    fontFamily: Fonts.bold,
+    fontSize: FontSizes['2xl'],
+    color: Colors.workingDot,
+  },
+  diffShortfall: {
+    fontFamily: Fonts.bold,
+    fontSize: FontSizes['2xl'],
+    color: Colors.exceededBadgeText,
+  },
   goalCard: {
     backgroundColor: Colors.cardBgZinc,
     borderWidth: 1,
@@ -361,6 +512,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     marginBottom: 14,
+    flexWrap: 'wrap',
   },
   goalValue: {
     fontFamily: Fonts.bold,
@@ -442,6 +594,23 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xs,
     color: Colors.timeRange,
   },
+  dayRight: {
+    minWidth: 72,
+    alignItems: 'flex-end',
+  },
+  rowStatusBadge: {
+    backgroundColor: Colors.workingBadgeBg,
+    borderWidth: 1,
+    borderColor: Colors.workingBadgeBorder,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  rowStatusBadgeText: {
+    fontFamily: Fonts.bold,
+    fontSize: FontSizes.xs,
+    color: Colors.workingBadgeText,
+  },
   dayHours: {
     fontFamily: Fonts.bold,
     fontSize: FontSizes.md,
@@ -494,6 +663,22 @@ const styles = StyleSheet.create({
   },
   sessionBlockSpacing: {
     marginBottom: 24,
+  },
+  deleteSessionBtn: {
+    marginTop: 10,
+    width: '100%',
+    height: 48,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.exceededBadgeBorder,
+    backgroundColor: Colors.exceededBadgeBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteSessionBtnText: {
+    fontFamily: Fonts.bold,
+    fontSize: FontSizes.md,
+    color: Colors.exceededBadgeText,
   },
   activityCard: {
     backgroundColor: Colors.white,
@@ -568,5 +753,41 @@ const styles = StyleSheet.create({
   },
   trashBtn: {
     padding: 4,
+  },
+  dayTagSection: {
+    marginTop: 20,
+  },
+  dayTagContainer: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    backgroundColor: Colors.white,
+    padding: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dayTagChip: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    backgroundColor: Colors.cardBgZinc,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayTagChipActive: {
+    backgroundColor: Colors.primaryButton,
+    borderColor: Colors.primaryButton,
+  },
+  dayTagChipText: {
+    fontFamily: Fonts.bold,
+    fontSize: FontSizes.xs,
+    color: Colors.normalTitle,
+  },
+  dayTagChipTextActive: {
+    color: Colors.primaryButtonText,
   },
 });

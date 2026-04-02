@@ -12,6 +12,8 @@ import { getDateKey, getWeekRange } from '../utils/dateUtils';
 
 const HISTORY_KEY = '@clockin_history';
 
+export type DayTag = 'none' | 'leave' | 'holiday' | 'absent';
+
 export interface ManualLog {
   id: string;
   date: string;
@@ -23,7 +25,6 @@ export interface ManualLog {
 
 export interface ShiftSession {
   clockInTime: number;
-  /** Null while a shift is still active (UI merge only); archived sessions always have a number. */
   clockOutTime: number | null;
   breaks: BreakRecord[];
 }
@@ -32,6 +33,7 @@ export interface DayRecord {
   date: string;
   shifts: ShiftSession[];
   manualLogs: ManualLog[];
+  dayTag: DayTag;
 }
 
 type HistoryMap = Record<string, DayRecord>;
@@ -40,27 +42,49 @@ const EMPTY_DAY = (date: string): DayRecord => ({
   date,
   shifts: [],
   manualLogs: [],
+  dayTag: 'none',
 });
+
+function normalizeDayTag(raw: unknown): DayTag {
+  if (raw === 'leave' || raw === 'holiday' || raw === 'absent' || raw === 'none') return raw;
+  return 'none';
+}
+
+function normalizeDayRecord(val: Record<string, any>, key: string): DayRecord {
+  const shifts: ShiftSession[] = [];
+  if (val.shifts && Array.isArray(val.shifts)) {
+    for (const s of val.shifts) {
+      if (s && typeof s.clockInTime === 'number') {
+        shifts.push({
+          clockInTime: s.clockInTime,
+          clockOutTime: s.clockOutTime ?? null,
+          breaks: s.breaks || [],
+        });
+      }
+    }
+  } else if (val.clockInTime && val.clockOutTime) {
+    shifts.push({
+      clockInTime: val.clockInTime,
+      clockOutTime: val.clockOutTime,
+      breaks: val.breaks || [],
+    });
+  }
+
+  const manualLogs: ManualLog[] = Array.isArray(val.manualLogs) ? val.manualLogs : [];
+
+  return {
+    date: val.date || key,
+    shifts,
+    manualLogs,
+    dayTag: normalizeDayTag(val.dayTag),
+  };
+}
 
 function migrateLegacy(raw: Record<string, any>): HistoryMap {
   const result: HistoryMap = {};
   for (const [key, val] of Object.entries(raw)) {
-    if (val.shifts) {
-      result[key] = val as DayRecord;
-    } else {
-      const shifts: ShiftSession[] = [];
-      if (val.clockInTime && val.clockOutTime) {
-        shifts.push({
-          clockInTime: val.clockInTime,
-          clockOutTime: val.clockOutTime,
-          breaks: val.breaks || [],
-        });
-      }
-      result[key] = {
-        date: val.date || key,
-        shifts,
-        manualLogs: val.manualLogs || [],
-      };
+    if (val && typeof val === 'object') {
+      result[key] = normalizeDayRecord(val as Record<string, any>, key);
     }
   }
   return result;
@@ -72,6 +96,8 @@ interface HistoryStore {
   archiveShift: (clockInTime: number, clockOutTime: number, breaks: BreakRecord[]) => Promise<void>;
   addManualLog: (log: ManualLog) => Promise<void>;
   deleteManualLog: (dateKey: string, logId: string) => Promise<void>;
+  deleteShiftSession: (dateKey: string, clockInTime: number) => Promise<void>;
+  setDayTag: (dateKey: string, tag: DayTag) => Promise<void>;
   getDayRecord: (dateKey: string) => DayRecord;
   getWeekRecords: () => DayRecord[];
   getWeeklyTotalMs: () => number;
@@ -161,6 +187,34 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     await persist(updated);
   }, [persist]);
 
+  const deleteShiftSession = useCallback(async (dateKey: string, clockInTime: number) => {
+    const current = histRef.current;
+    const existing = current[dateKey];
+    if (!existing) return;
+    const updated: HistoryMap = {
+      ...current,
+      [dateKey]: {
+        ...existing,
+        shifts: existing.shifts.filter((s) => s.clockInTime !== clockInTime),
+      },
+    };
+    await persist(updated);
+  }, [persist]);
+
+  const setDayTag = useCallback(async (dateKey: string, tag: DayTag) => {
+    const current = histRef.current;
+    const existing = current[dateKey] || EMPTY_DAY(dateKey);
+    const nextTag: DayTag = existing.dayTag === tag ? 'none' : tag;
+    const updated: HistoryMap = {
+      ...current,
+      [dateKey]: {
+        ...existing,
+        dayTag: nextTag,
+      },
+    };
+    await persist(updated);
+  }, [persist]);
+
   const getDayRecord = useCallback((dateKey: string): DayRecord => {
     return histRef.current[dateKey] || EMPTY_DAY(dateKey);
   }, []);
@@ -206,6 +260,8 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
         archiveShift,
         addManualLog,
         deleteManualLog,
+        deleteShiftSession,
+        setDayTag,
         getDayRecord,
         getWeekRecords,
         getWeeklyTotalMs,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, useWindowDimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, useWindowDimensions, Platform, Dimensions } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -12,7 +12,7 @@ const WORD = 'ClockIn';
 const FONT_SIZE = 88;
 /** Slightly below fontSize so vertical rows have no gap (text-mass). */
 const LINE_HEIGHT = FONT_SIZE * 0.92;
-const TEXT_COLOR = '#E4E4E7';
+const TEXT_COLOR = '#D4D4D8';
 const FONT_FAMILY = 'Inter_900Black';
 const SCROLL_DURATION_MS = 9000;
 
@@ -75,15 +75,18 @@ function MassRow({ index, tileWidth, mass }: MassRowProps) {
 }
 
 export default function BrutalistTextMassBackground() {
-  const { height } = useWindowDimensions();
+  const { height, width: winW } = useWindowDimensions();
+  const { width: dimW, height: dimH } = Dimensions.get('window');
+  const bgW = Math.max(winW, dimW);
+  const bgH = Math.max(height, dimH);
   const [tileWidth, setTileWidth] = useState(0);
   const mass = buildMass(120);
 
-  const rowCount = Math.max(12, Math.ceil(height / LINE_HEIGHT) + 4);
+  const rowCount = Math.max(12, Math.ceil(bgH / LINE_HEIGHT) + 4);
 
   return (
     <View
-      style={styles.root}
+      style={[styles.root, { width: bgW, height: bgH }]}
       pointerEvents="none"
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
@@ -116,7 +119,11 @@ export default function BrutalistTextMassBackground() {
 
 const styles = StyleSheet.create({
   root: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
     zIndex: -1,
     overflow: 'hidden',
     backgroundColor: 'transparent',
